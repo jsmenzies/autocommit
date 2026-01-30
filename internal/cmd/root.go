@@ -41,10 +41,10 @@ func Execute(version, commit, buildTime string) error {
 	return rootCmd.Execute()
 }
 
-// IsDebugEnabled returns true if debug mode is enabled
-func IsDebugEnabled() bool {
-	return debugFlag
-}
+//func IsDebugEnabled() bool {
+//	return debugFlag
+//}
+
 func init() {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $XDG_CONFIG_HOME/autocommit/config.yaml)")
 	rootCmd.PersistentFlags().BoolVarP(&generateFlag, "generate", "g", false, "Run generate directly (bypass TUI)")
@@ -122,14 +122,11 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 		}
 
 		fmt.Printf("\nSuggested commit message:\n%s\n\n", message)
-		action, err := promptUserAction()
+		action, err := promptUserAction(cfg)
 		if err != nil {
 			return err
 		}
 		switch action {
-		case "accept":
-			fmt.Println("Use 'autocommit commit' to commit with this message")
-			return nil
 		case "commit":
 			if err := git.DoCommit(message); err != nil {
 				return err
@@ -262,14 +259,17 @@ func createProvider(providerName string, providerCfg config.ProviderConfig, syst
 	return llm.CreateProvider(providerName, providerCfg.APIKey, providerCfg.Model, systemPrompt)
 }
 
-func promptUserAction() (string, error) {
+func promptUserAction(cfg *config.Config) (string, error) {
 	fmt.Println("Options:")
-	fmt.Println("  [a] Accept and show (use 'autocommit commit' to commit)")
-	fmt.Println("  [c] Accept and commit immediately")
+	if cfg.AutoPush {
+		fmt.Println("  [enter] Commit and push")
+	} else {
+		fmt.Println("  [enter] Commit")
+	}
 	fmt.Println("  [r] Regenerate message")
 	fmt.Println("  [e] Edit message")
-	fmt.Println("  [x] Cancel")
-	fmt.Print("\nChoice (a/c/r/e/x): ")
+	fmt.Println("  [q] Quit")
+	fmt.Print("\nChoice (enter/r/e/q): ")
 	reader := bufio.NewReader(os.Stdin)
 	input, err := reader.ReadString('\n')
 	if err != nil {
@@ -277,18 +277,16 @@ func promptUserAction() (string, error) {
 	}
 	input = strings.TrimSpace(strings.ToLower(input))
 	switch input {
-	case "a", "accept":
-		return "accept", nil
-	case "c", "commit":
+	case "", "enter":
 		return "commit", nil
 	case "r", "regenerate":
 		return "regenerate", nil
 	case "e", "edit":
 		return "edit", nil
-	case "x", "cancel":
+	case "q", "quit", "cancel":
 		return "cancel", nil
 	default:
-		fmt.Println("Invalid choice, defaulting to cancel")
+		fmt.Println("Invalid choice, defaulting to quit")
 		return "cancel", nil
 	}
 }
