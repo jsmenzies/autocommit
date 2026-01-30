@@ -13,19 +13,16 @@ import (
 	"autocommit/internal/debug"
 )
 
-// Provider defines the interface for LLM providers
 type Provider interface {
 	GenerateCommitMessage(ctx context.Context, diff string, recentCommits []string) (string, error)
 	Name() string
 }
 
-// Message represents a chat message
 type Message struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
 }
 
-// ChatRequest represents a chat completion request
 type ChatRequest struct {
 	Model       string    `json:"model"`
 	Messages    []Message `json:"messages"`
@@ -33,17 +30,14 @@ type ChatRequest struct {
 	MaxTokens   int       `json:"max_tokens"`
 }
 
-// Choice represents a completion choice
 type Choice struct {
 	Message Message `json:"message"`
 }
 
-// ChatResponse represents a chat completion response
 type ChatResponse struct {
 	Choices []Choice `json:"choices"`
 }
 
-// BaseProvider contains shared functionality for HTTP-based LLM providers
 type BaseProvider struct {
 	APIKey       string
 	Model        string
@@ -52,7 +46,6 @@ type BaseProvider struct {
 	client       *http.Client
 }
 
-// NewBaseProvider creates a new base provider with common configuration
 func NewBaseProvider(apiKey, model, baseURL, systemPrompt string, defaultModel string) *BaseProvider {
 	if model == "" {
 		model = defaultModel
@@ -64,12 +57,11 @@ func NewBaseProvider(apiKey, model, baseURL, systemPrompt string, defaultModel s
 		BaseURL:      baseURL,
 		SystemPrompt: systemPrompt,
 		client: &http.Client{
-			Timeout: 60 * time.Second,
+			Timeout: 15 * time.Second,
 		},
 	}
 }
 
-// BuildChatRequest creates a chat request with the given parameters
 func BuildChatRequest(model, systemPrompt, userContent string, temperature float64, maxTokens int) ChatRequest {
 	return ChatRequest{
 		Model: model,
@@ -82,7 +74,6 @@ func BuildChatRequest(model, systemPrompt, userContent string, temperature float
 	}
 }
 
-// BuildUserContent creates the user content from diff and recent commits
 func BuildUserContent(diff string, recentCommits []string) string {
 	recentContext := ""
 	if len(recentCommits) > 0 {
@@ -95,7 +86,6 @@ func BuildUserContent(diff string, recentCommits []string) string {
 	return fmt.Sprintf("Git diff:\n%s%s", diff, recentContext)
 }
 
-// SendChatRequest sends a chat request and returns the response
 func (bp *BaseProvider) SendChatRequest(ctx context.Context, req ChatRequest) (*ChatResponse, error) {
 	reqBody, err := json.Marshal(req)
 	if err != nil {
@@ -146,7 +136,6 @@ func (bp *BaseProvider) SendChatRequest(ctx context.Context, req ChatRequest) (*
 	return &chatResp, nil
 }
 
-// ExtractMessage extracts the message content from a chat response
 func ExtractMessage(chatResp *ChatResponse) (string, error) {
 	if len(chatResp.Choices) == 0 {
 		return "", fmt.Errorf("no response from LLM (empty choices)")

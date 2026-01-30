@@ -41,16 +41,11 @@ func Execute(version, commit, buildTime string) error {
 	return rootCmd.Execute()
 }
 
-//func IsDebugEnabled() bool {
-//	return debugFlag
-//}
-
 func init() {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $XDG_CONFIG_HOME/autocommit/config.yaml)")
 	rootCmd.PersistentFlags().BoolVarP(&generateFlag, "generate", "g", false, "Run generate directly (bypass TUI)")
 	rootCmd.PersistentFlags().BoolVarP(&debugFlag, "debug", "d", false, "Enable debug mode (verbose output)")
 
-	// Set up debug flag callback
 	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
 		debug.Enabled = debugFlag
 	}
@@ -178,7 +173,6 @@ func runCommit(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println("Changes committed successfully!")
 
-	// Auto-push if enabled
 	if cfg.AutoPush {
 		fmt.Println("Auto-pushing to remote...")
 		if err := git.Push(); err != nil {
@@ -246,7 +240,6 @@ func generateWorkflow(cfgFile string, autoAdd bool) (string, *config.Config, err
 		return "", nil, fmt.Errorf("failed to generate message: %w", err)
 	}
 
-	// Validate that we got a non-empty message
 	if strings.TrimSpace(message) == "" {
 		return "", nil, fmt.Errorf("generated message is empty - please try again or check your API key and model settings")
 	}
@@ -254,7 +247,6 @@ func generateWorkflow(cfgFile string, autoAdd bool) (string, *config.Config, err
 	return message, cfg, nil
 }
 
-// createProvider creates an LLM provider based on the configuration
 func createProvider(providerName string, providerCfg config.ProviderConfig, systemPrompt string) (llm.Provider, error) {
 	return llm.CreateProvider(providerName, providerCfg.APIKey, providerCfg.Model, systemPrompt)
 }

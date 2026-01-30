@@ -7,33 +7,27 @@ import (
 	"net/http"
 )
 
-// GroqAPIEndpoint is the Groq API endpoint for chat completions
 const GroqAPIEndpoint = "https://api.groq.com/openai/v1/chat/completions"
 
-// GroqProvider implements the Provider interface for Groq
 type GroqProvider struct {
 	*BaseProvider
 }
 
-// NewGroqProvider creates a new Groq provider instance
 func NewGroqProvider(apiKey, model, systemPrompt string) *GroqProvider {
 	return &GroqProvider{
 		BaseProvider: NewBaseProvider(apiKey, model, GroqAPIEndpoint, systemPrompt, DefaultGroqModel),
 	}
 }
 
-// Name returns the provider name
 func (g *GroqProvider) Name() string {
 	return ProviderGroq
 }
 
-// GenerateCommitMessage generates a commit message using the Groq API
 func (g *GroqProvider) GenerateCommitMessage(ctx context.Context, diff string, recentCommits []string) (string, error) {
 	if g.APIKey == "" {
 		return "", fmt.Errorf("groq API key is not configured")
 	}
 
-	// Use custom system prompt if provided, otherwise use default
 	systemPrompt := g.SystemPrompt
 	if systemPrompt == "" {
 		systemPrompt = prompt.GetDefaultSystemPrompt()
@@ -50,7 +44,6 @@ func (g *GroqProvider) GenerateCommitMessage(ctx context.Context, diff string, r
 	return ExtractMessage(chatResp)
 }
 
-// SetClient allows setting a custom HTTP client (useful for testing)
 func (g *GroqProvider) SetClient(client *http.Client) {
 	g.client = client
 }
