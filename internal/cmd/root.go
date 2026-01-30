@@ -120,30 +120,19 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
-	// Check for any changes (staged or unstaged)
-	hasStaged := git.HasStagedChanges()
-	hasUnstaged := git.HasUnstagedChanges()
-
-	if !hasStaged {
-		if cfg.AutoAdd {
-			fmt.Println("Auto-adding all changes...")
-			if err := git.AddAll(); err != nil {
-				return fmt.Errorf("failed to auto-add changes: %w", err)
-			}
-			// Verify that something was actually staged
-			if !git.HasStagedChanges() {
-				return fmt.Errorf("auto-add completed but no changes were staged. Check 'git status' to see if you have modified or untracked files")
-			}
-		} else {
-			return fmt.Errorf("no staged changes found. Run 'git add' first or enable auto_add in config")
-		}
-	} else if hasUnstaged && cfg.AutoAdd {
-		// If we have staged changes but also unstaged changes, auto-add the rest
-		fmt.Println("Auto-adding remaining changes...")
+	// Handle auto_add: if enabled, always stage all changes unconditionally
+	if cfg.AutoAdd {
+		fmt.Println("Auto-adding all changes...")
 		if err := git.AddAll(); err != nil {
 			return fmt.Errorf("failed to auto-add changes: %w", err)
 		}
 	}
+
+	// Check if we have staged changes to generate a message from
+	if !git.HasStagedChanges() {
+		return fmt.Errorf("no staged changes found. Run 'git add' first or enable auto_add in config")
+	}
+
 	providerCfg, err := cfg.GetDefaultProvider()
 	if err != nil {
 		return err
@@ -215,30 +204,19 @@ func runCommit(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
-	// Check for any changes (staged or unstaged)
-	hasStaged := git.HasStagedChanges()
-	hasUnstaged := git.HasUnstagedChanges()
-
-	if !hasStaged {
-		if cfg.AutoAdd {
-			fmt.Println("Auto-adding all changes...")
-			if err := git.AddAll(); err != nil {
-				return fmt.Errorf("failed to auto-add changes: %w", err)
-			}
-			// Verify that something was actually staged
-			if !git.HasStagedChanges() {
-				return fmt.Errorf("auto-add completed but no changes were staged. Check 'git status' to see if you have modified or untracked files")
-			}
-		} else {
-			return fmt.Errorf("no staged changes found. Run 'git add' first or enable auto_add in config")
-		}
-	} else if hasUnstaged && cfg.AutoAdd {
-		// If we have staged changes but also unstaged changes, auto-add the rest
-		fmt.Println("Auto-adding remaining changes...")
+	// Handle auto_add: if enabled, always stage all changes unconditionally
+	if cfg.AutoAdd {
+		fmt.Println("Auto-adding all changes...")
 		if err := git.AddAll(); err != nil {
 			return fmt.Errorf("failed to auto-add changes: %w", err)
 		}
 	}
+
+	// Check if we have staged changes to generate a message from
+	if !git.HasStagedChanges() {
+		return fmt.Errorf("no staged changes found. Run 'git add' first or enable auto_add in config")
+	}
+
 	providerCfg, err := cfg.GetDefaultProvider()
 	if err != nil {
 		return err

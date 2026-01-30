@@ -19,12 +19,6 @@ func HasStagedChanges() bool {
 	return err != nil
 }
 
-func HasUnstagedChanges() bool {
-	cmd := exec.Command("git", "diff", "--quiet")
-	err := cmd.Run()
-	return err != nil
-}
-
 func GetCurrentBranch() (string, error) {
 	cmd := exec.Command("git", "branch", "--show-current")
 	output, err := cmd.Output()
