@@ -2,6 +2,7 @@ package tui
 
 import (
 	"autocommit/internal/config"
+	"autocommit/internal/llm"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
@@ -21,34 +22,14 @@ const (
 	screenGitConfig
 )
 
-type providerInfo struct {
-	name        string
-	displayName string
-	models      []string
-}
-
-var availableProviders = []providerInfo{
-	{
-		name:        "zai",
-		displayName: "z.ai (GLM models)",
-		models:      []string{"glm-4.7-Flash", "glm-4.7-FlashX", "glm-4.7"},
-	},
-	{
-		name:        "openai",
-		displayName: "OpenAI (GPT models)",
-		models:      []string{"gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"},
-	},
-	{
-		name:        "groq",
-		displayName: "Groq (Ultra-fast inference)",
-		models:      []string{"llama-3.1-8b-instant", "llama-3.3-70b-versatile", "llama-4-scout-17b-16e-instruct", "mixtral-8x7b-32768", "gemma2-9b-it"},
-	},
-}
+// availableProviders references the provider registry from llm package
+var availableProviders = llm.Registry
 
 type model struct {
 	screen    screen
 	config    *config.Config
 	configErr error
+	saveErr   error // Error from last save attempt
 	// Main menu
 	menuCursor int
 	menuItems  []menuItem
@@ -120,5 +101,15 @@ func newStyles() *styles {
 		error:       lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5555")),
 		success:     lipgloss.NewStyle().Foreground(lipgloss.Color("#55FF55")),
 		instruction: lipgloss.NewStyle().Foreground(lipgloss.Color("#666666")).MarginTop(1),
+	}
+}
+
+// ensureConfig initializes the config if it's nil
+// Call this before accessing m.config in any screen that modifies configuration
+func (m *model) ensureConfig() {
+	if m.config == nil {
+		m.config = &config.Config{
+			Providers: make(map[string]config.ProviderConfig),
+		}
 	}
 }

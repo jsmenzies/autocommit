@@ -33,3 +33,8 @@ func EditMessage(original string) (string, error) {
 
 	return strings.Join(lines, "\n"), nil
 }
+
+// GetDefaultSystemPrompt returns the default system prompt for commit message generation
+func GetDefaultSystemPrompt() string {
+	return DefaultSystemPrompt
+}

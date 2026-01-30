@@ -69,27 +69,6 @@ func NewBaseProvider(apiKey, model, baseURL, systemPrompt string, defaultModel s
 	}
 }
 
-// GetDefaultSystemPrompt returns the default commit message generation prompt
-func GetDefaultSystemPrompt() string {
-	return `You are a commit message generator. Analyze the git diff and create a conventional commit message.
-Follow these rules:
-- Use format: <type>(<scope>): <subject>
-- Types: feat, fix, docs, style, refactor, test, chore
-- Scope is optional - omit if not needed
-- Keep subject under 72 characters
-- Use present tense, imperative mood
-- Be specific but concise
-- Do not include any explanation, only output the commit message
-- Do not use markdown code blocks
-
-Examples:
-- feat(auth): add password validation to login form
-- fix(api): handle nil pointer in user service
-- docs(readme): update installation instructions
-- refactor(db): optimize query performance with index
-- feat: add new feature without scope`
-}
-
 // BuildChatRequest creates a chat request with the given parameters
 func BuildChatRequest(model, systemPrompt, userContent string, temperature float64, maxTokens int) ChatRequest {
 	return ChatRequest{

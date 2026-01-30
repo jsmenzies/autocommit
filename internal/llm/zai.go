@@ -1,12 +1,12 @@
 package llm
 
 import (
+	"autocommit/internal/debug"
+	"autocommit/internal/prompt"
 	"context"
 	"fmt"
 	"net/http"
 	"strings"
-
-	"autocommit/internal/debug"
 )
 
 // ZaiAPIEndpoint is the z.ai API endpoint for chat completions
@@ -19,18 +19,14 @@ type ZaiProvider struct {
 
 // NewZaiProvider creates a new z.ai provider instance
 func NewZaiProvider(apiKey, model, systemPrompt string) *ZaiProvider {
-	if model == "" {
-		model = "glm-4.7"
-	}
-
 	return &ZaiProvider{
-		BaseProvider: NewBaseProvider(apiKey, model, ZaiAPIEndpoint, systemPrompt, "glm-4.7"),
+		BaseProvider: NewBaseProvider(apiKey, model, ZaiAPIEndpoint, systemPrompt, DefaultZaiModel),
 	}
 }
 
 // Name returns the provider name
 func (z *ZaiProvider) Name() string {
-	return "zai"
+	return ProviderZai
 }
 
 // GenerateCommitMessage generates a commit message using the z.ai API
@@ -49,12 +45,12 @@ func (z *ZaiProvider) GenerateCommitMessage(ctx context.Context, diff string, re
 	// Use custom system prompt if provided, otherwise use default
 	systemPrompt := z.SystemPrompt
 	if systemPrompt == "" {
-		systemPrompt = GetDefaultSystemPrompt()
+		systemPrompt = prompt.GetDefaultSystemPrompt()
 	}
 	debug.Printf("[DEBUG] System prompt length: %d chars\n", len(systemPrompt))
 
 	userContent := BuildUserContent(diff, recentCommits)
-	req := BuildChatRequest(z.Model, systemPrompt, userContent, 0.7, 1500)
+	req := BuildChatRequest(z.Model, systemPrompt, userContent, DefaultTemperature, ZaiMaxTokens)
 
 	chatResp, err := z.SendChatRequest(ctx, req)
 	if err != nil {

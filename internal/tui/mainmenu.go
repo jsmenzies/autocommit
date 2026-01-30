@@ -1,7 +1,7 @@
 package tui
 
 import (
-	"autocommit/internal/config"
+	"autocommit/internal/prompt"
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -26,7 +26,7 @@ func (m model) updateMainMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if m.config != nil {
 				m.promptTextarea.SetValue(m.config.GetSystemPrompt())
 			} else {
-				m.promptTextarea.SetValue(config.DefaultSystemPrompt)
+				m.promptTextarea.SetValue(prompt.GetDefaultSystemPrompt())
 			}
 			m.screen = screenPromptEditor
 		case 2: // Git Configuration

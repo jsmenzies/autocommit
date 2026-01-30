@@ -1,6 +1,7 @@
 package llm
 
 import (
+	"autocommit/internal/prompt"
 	"context"
 	"fmt"
 	"net/http"
@@ -17,13 +18,13 @@ type GroqProvider struct {
 // NewGroqProvider creates a new Groq provider instance
 func NewGroqProvider(apiKey, model, systemPrompt string) *GroqProvider {
 	return &GroqProvider{
-		BaseProvider: NewBaseProvider(apiKey, model, GroqAPIEndpoint, systemPrompt, "llama-3.1-8b-instant"),
+		BaseProvider: NewBaseProvider(apiKey, model, GroqAPIEndpoint, systemPrompt, DefaultGroqModel),
 	}
 }
 
 // Name returns the provider name
 func (g *GroqProvider) Name() string {
-	return "groq"
+	return ProviderGroq
 }
 
 // GenerateCommitMessage generates a commit message using the Groq API
@@ -35,11 +36,11 @@ func (g *GroqProvider) GenerateCommitMessage(ctx context.Context, diff string, r
 	// Use custom system prompt if provided, otherwise use default
 	systemPrompt := g.SystemPrompt
 	if systemPrompt == "" {
-		systemPrompt = GetDefaultSystemPrompt()
+		systemPrompt = prompt.GetDefaultSystemPrompt()
 	}
 
 	userContent := BuildUserContent(diff, recentCommits)
-	req := BuildChatRequest(g.Model, systemPrompt, userContent, 0.7, 500)
+	req := BuildChatRequest(g.Model, systemPrompt, userContent, DefaultTemperature, DefaultMaxTokens)
 
 	chatResp, err := g.SendChatRequest(ctx, req)
 	if err != nil {
