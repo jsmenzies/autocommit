@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"autocommit/internal/config"
+	"autocommit/internal/debug"
 	"autocommit/internal/git"
 	"autocommit/internal/llm"
 	"autocommit/internal/prompt"
@@ -18,11 +19,12 @@ import (
 var (
 	cfgFile      string
 	generateFlag bool
+	debugFlag    bool
 	rootCmd      = &cobra.Command{
 		Use:   "autocommit",
 		Short: "AI-powered conventional commit message generator",
 		Long: `AutoCommit analyzes your staged Git changes and generates conventional commit messages
-using LLM providers. Currently supports z.ai (GLM models).`,
+using LLM providers. Supports z.ai (GLM models), OpenAI (GPT models), and Groq (ultra-fast inference).`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// If -g flag is set, run generate directly
 			if generateFlag {
@@ -38,9 +40,21 @@ func Execute(version, commit, buildTime string) error {
 	rootCmd.Version = version
 	return rootCmd.Execute()
 }
+
+// IsDebugEnabled returns true if debug mode is enabled
+func IsDebugEnabled() bool {
+	return debugFlag
+}
 func init() {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $XDG_CONFIG_HOME/autocommit/config.yaml)")
 	rootCmd.PersistentFlags().BoolVarP(&generateFlag, "generate", "g", false, "Run generate directly (bypass TUI)")
+	rootCmd.PersistentFlags().BoolVarP(&debugFlag, "debug", "d", false, "Enable debug mode (verbose output)")
+
+	// Set up debug flag callback
+	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
+		debug.Enabled = debugFlag
+	}
+
 	rootCmd.AddCommand(configCmd)
 	rootCmd.AddCommand(generateCmd)
 	rootCmd.AddCommand(commitCmd)
@@ -106,16 +120,19 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
-	if !git.HasStagedChanges() {
-		if cfg.AutoAdd {
-			fmt.Println("Auto-adding all changes...")
-			if err := git.AddAll(); err != nil {
-				return fmt.Errorf("failed to auto-add changes: %w", err)
-			}
-		} else {
-			return fmt.Errorf("no staged changes found. Run 'git add' first or enable auto_add in config")
+	// Handle auto_add: if enabled, always stage all changes unconditionally
+	if cfg.AutoAdd {
+		fmt.Println("Auto-adding all changes...")
+		if err := git.AddAll(); err != nil {
+			return fmt.Errorf("failed to auto-add changes: %w", err)
 		}
 	}
+
+	// Check if we have staged changes to generate a message from
+	if !git.HasStagedChanges() {
+		return fmt.Errorf("no staged changes found. Run 'git add' first or enable auto_add in config")
+	}
+
 	providerCfg, err := cfg.GetDefaultProvider()
 	if err != nil {
 		return err
@@ -128,18 +145,21 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		recentCommits = []string{}
 	}
-	var provider llm.Provider
-	switch cfg.DefaultProvider {
-	case "zai":
-		provider = llm.NewZaiProvider(providerCfg.APIKey, providerCfg.Model, cfg.GetSystemPrompt())
-	default:
-		return fmt.Errorf("unsupported provider: %s", cfg.DefaultProvider)
+	provider, err := createProvider(cfg.DefaultProvider, providerCfg, cfg.GetSystemPrompt())
+	if err != nil {
+		return err
 	}
 	ctx := context.Background()
 	message, err := provider.GenerateCommitMessage(ctx, diff, recentCommits)
 	if err != nil {
 		return fmt.Errorf("failed to generate message: %w", err)
 	}
+
+	// Validate that we got a non-empty message
+	if strings.TrimSpace(message) == "" {
+		return fmt.Errorf("generated message is empty - please try again or check your API key and model settings")
+	}
+
 	fmt.Printf("\nSuggested commit message:\n%s\n\n", message)
 	action, err := promptUserAction()
 	if err != nil {
@@ -184,16 +204,19 @@ func runCommit(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
-	if !git.HasStagedChanges() {
-		if cfg.AutoAdd {
-			fmt.Println("Auto-adding all changes...")
-			if err := git.AddAll(); err != nil {
-				return fmt.Errorf("failed to auto-add changes: %w", err)
-			}
-		} else {
-			return fmt.Errorf("no staged changes found. Run 'git add' first or enable auto_add in config")
+	// Handle auto_add: if enabled, always stage all changes unconditionally
+	if cfg.AutoAdd {
+		fmt.Println("Auto-adding all changes...")
+		if err := git.AddAll(); err != nil {
+			return fmt.Errorf("failed to auto-add changes: %w", err)
 		}
 	}
+
+	// Check if we have staged changes to generate a message from
+	if !git.HasStagedChanges() {
+		return fmt.Errorf("no staged changes found. Run 'git add' first or enable auto_add in config")
+	}
+
 	providerCfg, err := cfg.GetDefaultProvider()
 	if err != nil {
 		return err
@@ -206,12 +229,9 @@ func runCommit(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		recentCommits = []string{}
 	}
-	var provider llm.Provider
-	switch cfg.DefaultProvider {
-	case "zai":
-		provider = llm.NewZaiProvider(providerCfg.APIKey, providerCfg.Model, cfg.GetSystemPrompt())
-	default:
-		return fmt.Errorf("unsupported provider: %s", cfg.DefaultProvider)
+	provider, err := createProvider(cfg.DefaultProvider, providerCfg, cfg.GetSystemPrompt())
+	if err != nil {
+		return err
 	}
 	ctx := context.Background()
 	message, err := provider.GenerateCommitMessage(ctx, diff, recentCommits)
@@ -230,6 +250,20 @@ var commitCmd = &cobra.Command{
 	Use:   "commit",
 	Short: "Generate message and commit changes",
 	RunE:  runCommit,
+}
+
+// createProvider creates an LLM provider based on the configuration
+func createProvider(providerName string, providerCfg config.ProviderConfig, systemPrompt string) (llm.Provider, error) {
+	switch providerName {
+	case "zai":
+		return llm.NewZaiProvider(providerCfg.APIKey, providerCfg.Model, systemPrompt), nil
+	case "openai":
+		return llm.NewOpenAIProvider(providerCfg.APIKey, providerCfg.Model, systemPrompt), nil
+	case "groq":
+		return llm.NewGroqProvider(providerCfg.APIKey, providerCfg.Model, systemPrompt), nil
+	default:
+		return nil, fmt.Errorf("unsupported provider: %s", providerName)
+	}
 }
 
 func promptUserAction() (string, error) {

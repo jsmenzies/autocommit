@@ -22,6 +22,7 @@ type Config struct {
 	DefaultProvider string                    `mapstructure:"default_provider"`
 	SystemPrompt    string                    `mapstructure:"system_prompt,omitempty"`
 	AutoAdd         bool                      `mapstructure:"auto_add,omitempty"`
+	AutoPush        bool                      `mapstructure:"auto_push,omitempty"`
 	Providers       map[string]ProviderConfig `mapstructure:"providers"`
 }
 
@@ -162,6 +163,7 @@ func Save(cfg *Config) error {
 	viper.Set("system_prompt", cfg.SystemPrompt)
 	viper.Set("default_provider", cfg.DefaultProvider)
 	viper.Set("auto_add", cfg.AutoAdd)
+	viper.Set("auto_push", cfg.AutoPush)
 	viper.Set("providers", cfg.Providers)
 	viper.SetConfigFile(configPath)
 	viper.SetConfigType("yaml")

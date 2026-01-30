@@ -6,10 +6,7 @@ A CLI tool that analyzes Git history and generates conventional commit messages 
 
 - 🤖 AI-powered commit message generation
 - 📝 Follows conventional commits specification
-- 🖥️ Interactive TUI for easy configuration
-- ⚙️ Configurable LLM providers (starting with z.ai)
-- 🔧 Git auto-add support for convenience
-- ✏️ Customizable system prompts
+- ⚙️ Configurable LLM providers (z.ai, OpenAI, and Groq)
 - 🖥️ Cross-platform: Windows, macOS, Linux
 
 ## Installation
@@ -91,8 +88,14 @@ auto_add: true
 system_prompt: ""
 providers:
   zai:
-    apikey: your-api-key-here
-    model: glm-4.7-Flash
+    apikey: your-zai-api-key-here
+    model: glm-4.7
+  openai:
+    apikey: your-openai-api-key-here
+    model: gpt-4o-mini
+  groq:
+    apikey: your-groq-api-key-here
+    model: llama-3.1-8b-instant
 ```
 
 ### Configuration Options
