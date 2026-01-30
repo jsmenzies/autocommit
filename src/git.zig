@@ -369,6 +369,26 @@ pub fn printGitStatus(writer: anytype, status: *GitStatus) !bool {
     return true;
 }
 
+/// Add all unstaged and untracked files to the staging area
+pub fn addAll(allocator: std.mem.Allocator) !void {
+    const result = std.process.Child.run(.{
+        .allocator = allocator,
+        .argv = &[_][]const u8{ "git", "add", "-A" },
+        .max_output_bytes = 1024,
+    }) catch return error.GitCommandFailed;
+    defer allocator.free(result.stdout);
+    defer allocator.free(result.stderr);
+
+    if (result.term.Exited != 0) {
+        return error.GitCommandFailed;
+    }
+}
+
+/// Count unstaged and untracked files (files that can be added)
+pub fn unstagedAndUntrackedCount(status: *GitStatus) usize {
+    return status.unstagedCount() + status.untrackedCount();
+}
+
 test "isRepo detects git repository" {
     try std.testing.expect(isRepo());
 }
