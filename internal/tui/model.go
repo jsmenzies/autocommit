@@ -31,7 +31,7 @@ var availableProviders = []providerInfo{
 	{
 		name:        "zai",
 		displayName: "z.ai (GLM models)",
-		models:      []string{"glm-4.7"},
+		models:      []string{"glm-4.7-Flash", "glm-4.7-FlashX", "glm-4.7"},
 	},
 }
 
