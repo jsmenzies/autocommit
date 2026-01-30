@@ -31,7 +31,7 @@ Thumbs.db
 # Build outputs
 bin/
 dist/
-autocommit
+/autocommit
 
 # Config files (user-specific)
 *.yaml
