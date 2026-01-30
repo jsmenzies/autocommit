@@ -48,3 +48,8 @@ dist/
 # Test artifacts
 tmp/
 temp/
+
+# Zig build artifacts
+zig-cache/
+zig-out/
+*.zig~
