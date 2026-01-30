@@ -70,6 +70,12 @@ jobs:
           name: autocommit-macos-arm64
           path: artifacts
       
+      - name: Download macOS checksum
+        uses: actions/download-artifact@v4
+        with:
+          name: autocommit-macos-arm64-checksum
+          path: artifacts
+      
       - name: Extract version and SHA256
         id: info
         shell: bash
@@ -78,6 +84,7 @@ jobs:
           VERSION=${VERSION#v}
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           
+          ls -la artifacts/
           SHA256=$(cat artifacts/autocommit-macos-arm64.sha256 | cut -d' ' -f1)
           echo "sha256=$SHA256" >> $GITHUB_OUTPUT
       
