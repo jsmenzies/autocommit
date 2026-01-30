@@ -73,6 +73,9 @@ runs:
         # Update SHA256
         sed -i "s/sha256 \"[^\"]*\"/sha256 \"${{ inputs.sha256 }}\"/" "$FORMULA"
         
+        # Update install line to use correct filename
+        sed -i 's/bin\.install "autocommit"/bin.install "autocommit-macos-arm64" => "autocommit"/' "$FORMULA"
+        
         echo "Updated formula:"
         cat "$FORMULA"
     
