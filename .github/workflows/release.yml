@@ -160,7 +160,7 @@ jobs:
           cd homebrew-tap
           
           # Update the formula file
-          FORMULA="autocommit.rb"
+          FORMULA="Formula/autocommit.rb"
           if [ -f "$FORMULA" ]; then
             # Update version
             sed -i "s/version \"[^\"]*\"/version \"${{ steps.info.outputs.version }}\"/" "$FORMULA"
@@ -184,6 +184,6 @@ jobs:
           cd homebrew-tap
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add autocommit.rb
+          git add Formula/autocommit.rb
           git commit -m "Update autocommit to ${{ github.ref_name }}" || echo "No changes to commit"
           git push
