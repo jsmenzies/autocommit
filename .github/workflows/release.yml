@@ -2,63 +2,121 @@ name: Release
 
 on:
   push:
-    branches:
-      - main
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
-  release-please:
-    name: Release Automation
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
+  build:
+    strategy:
+      matrix:
+        include:
+          - target: aarch64-macos
+            os: macos-14
+            name: autocommit-macos-arm64
+          
+          - target: x86_64-linux-musl
+            os: ubuntu-latest
+            name: autocommit-linux-x86_64
 
-    outputs:
-      release_created: ${{ steps.release.outputs.release_created }}
-      tag_name: ${{ steps.release.outputs.tag_name }}
-
+    runs-on: ${{ matrix.os }}
     steps:
-      - name: Analyze Commits and Create Release PR
-        id: release
-        uses: googleapis/release-please-action@v4
+      - uses: actions/checkout@v4
+      
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v1
         with:
-          # Config and manifest files in release/ directory
-          config-file: release/release-please-config.json
-          manifest-file: release/.release-please-manifest.json
+          version: 0.13.0
+      
+      - name: Build Release Binary
+        run: |
+          zig build -Dtarget=${{ matrix.target }} -Doptimize=ReleaseSmall -Dstrip=true
+          mv zig-out/bin/autocommit ${{ matrix.name }}
+      
+      - name: Generate Checksum
+        run: |
+          sha256sum ${{ matrix.name }} > ${{ matrix.name }}.sha256
+          cat ${{ matrix.name }}.sha256
+      
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: |
+            ${{ matrix.name }}
+            ${{ matrix.name }}.sha256
 
   release:
-    name: Build and Release
-    needs: release-please
-    if: ${{ needs.release-please.outputs.release_created }}
+    needs: build
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Set up Go
-        uses: actions/setup-go@v6
+      
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
         with:
-          go-version-file: 'go.mod'
-          cache: true
-
-      - name: Run tests
-        run: go test -v -race ./...
-
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v6
+          path: artifacts
+          merge-multiple: true
+      
+      - name: Generate Changelog
+        id: changelog
+        run: |
+          # Get commits since last tag
+          LAST_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
+          if [ -z "$LAST_TAG" ]; then
+            COMMITS=$(git log --pretty=format:"- %s" --no-merges)
+          else
+            COMMITS=$(git log ${LAST_TAG}..HEAD --pretty=format:"- %s" --no-merges)
+          fi
+          
+          # Categorize commits
+          FEATS=$(echo "$COMMITS" | grep -E "^- feat" || true)
+          FIXES=$(echo "$COMMITS" | grep -E "^- fix" || true)
+          DOCS=$(echo "$COMMITS" | grep -E "^- docs" || true)
+          OTHER=$(echo "$COMMITS" | grep -vE "^- (feat|fix|docs)" || true)
+          
+          # Build release notes
+          NOTES="## What's New\n\n"
+          if [ ! -z "$FEATS" ]; then
+            NOTES="${NOTES}### Features\n${FEATS}\n\n"
+          fi
+          if [ ! -z "$FIXES" ]; then
+            NOTES="${NOTES}### Bug Fixes\n${FIXES}\n\n"
+          fi
+          if [ ! -z "$DOCS" ]; then
+            NOTES="${NOTES}### Documentation\n${DOCS}\n\n"
+          fi
+          if [ ! -z "$OTHER" ]; then
+            NOTES="${NOTES}### Other Changes\n${OTHER}\n\n"
+          fi
+          
+          NOTES="${NOTES}## Installation\n\n"
+          NOTES="${NOTES}### macOS (Apple Silicon)\n\`\`\`bash\ncurl -L -o autocommit https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/autocommit-macos-arm64\nchmod +x autocommit\nsudo mv autocommit /usr/local/bin/\n\`\`\`\n\n"
+          NOTES="${NOTES}### Linux (x86_64)\n\`\`\`bash\ncurl -L -o autocommit https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/autocommit-linux-x86_64\nchmod +x autocommit\nsudo mv autocommit /usr/local/bin/\n\`\`\`\n\n"
+          
+          MACOS_SHA=$(cat artifacts/autocommit-macos-arm64.sha256 | cut -d' ' -f1)
+          LINUX_SHA=$(cat artifacts/autocommit-linux-x86_64.sha256 | cut -d' ' -f1)
+          
+          NOTES="${NOTES}## Checksums\n\n| File | SHA256 |\n|------|--------|"
+          NOTES="${NOTES}| autocommit-macos-arm64 | \`${MACOS_SHA}\` |\n"
+          NOTES="${NOTES}| autocommit-linux-x86_64 | \`${LINUX_SHA}\` |\n"
+          
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
         with:
-          distribution: goreleaser
-          version: '~> v2'
-          args: release --clean -f release/.goreleaser.yml
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HOMEBREW_AUTOCOMMIT_TOKEN: ${{ secrets.HOMEBREW_AUTOCOMMIT_TOKEN }}
-          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
-          BUILT_BY: ${{ github.event.head_commit.author.name }}
+          body: ${{ steps.changelog.outputs.notes }}
+          files: |
+            artifacts/autocommit-macos-arm64
+            artifacts/autocommit-macos-arm64.sha256
+            artifacts/autocommit-linux-x86_64
+            artifacts/autocommit-linux-x86_64.sha256
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') }}
