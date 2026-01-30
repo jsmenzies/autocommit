@@ -139,11 +139,7 @@ func (m model) updateProviderConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "enter":
 		// Save the configuration
-		if m.config == nil {
-			m.config = &config.Config{
-				Providers: make(map[string]config.ProviderConfig),
-			}
-		}
+		m.ensureConfig()
 
 		// Determine API key to save
 		apiKey := m.apiKeyInput.Value()

@@ -113,51 +113,9 @@ func init() {
 }
 
 func runGenerate(cmd *cobra.Command, args []string) error {
-	if !git.IsGitRepo() {
-		return fmt.Errorf("not a git repository")
-	}
-	cfg, err := config.Load(cfgFile)
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
-	// Handle auto_add: if enabled, always stage all changes unconditionally
-	if cfg.AutoAdd {
-		fmt.Println("Auto-adding all changes...")
-		if err := git.AddAll(); err != nil {
-			return fmt.Errorf("failed to auto-add changes: %w", err)
-		}
-	}
-
-	// Check if we have staged changes to generate a message from
-	if !git.HasStagedChanges() {
-		return fmt.Errorf("no staged changes found. Run 'git add' first or enable auto_add in config")
-	}
-
-	providerCfg, err := cfg.GetDefaultProvider()
+	message, _, err := generateWorkflow(cfgFile, true)
 	if err != nil {
 		return err
-	}
-	diff, err := git.GetStagedDiff()
-	if err != nil {
-		return err
-	}
-	recentCommits, err := git.GetRecentCommitMessages(5)
-	if err != nil {
-		recentCommits = []string{}
-	}
-	provider, err := createProvider(cfg.DefaultProvider, providerCfg, cfg.GetSystemPrompt())
-	if err != nil {
-		return err
-	}
-	ctx := context.Background()
-	message, err := provider.GenerateCommitMessage(ctx, diff, recentCommits)
-	if err != nil {
-		return fmt.Errorf("failed to generate message: %w", err)
-	}
-
-	// Validate that we got a non-empty message
-	if strings.TrimSpace(message) == "" {
-		return fmt.Errorf("generated message is empty - please try again or check your API key and model settings")
 	}
 
 	fmt.Printf("\nSuggested commit message:\n%s\n\n", message)
@@ -197,47 +155,11 @@ var generateCmd = &cobra.Command{
 }
 
 func runCommit(cmd *cobra.Command, args []string) error {
-	if !git.IsGitRepo() {
-		return fmt.Errorf("not a git repository")
-	}
-	cfg, err := config.Load(cfgFile)
+	message, _, err := generateWorkflow(cfgFile, true)
 	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
-	// Handle auto_add: if enabled, always stage all changes unconditionally
-	if cfg.AutoAdd {
-		fmt.Println("Auto-adding all changes...")
-		if err := git.AddAll(); err != nil {
-			return fmt.Errorf("failed to auto-add changes: %w", err)
-		}
+		return err
 	}
 
-	// Check if we have staged changes to generate a message from
-	if !git.HasStagedChanges() {
-		return fmt.Errorf("no staged changes found. Run 'git add' first or enable auto_add in config")
-	}
-
-	providerCfg, err := cfg.GetDefaultProvider()
-	if err != nil {
-		return err
-	}
-	diff, err := git.GetStagedDiff()
-	if err != nil {
-		return err
-	}
-	recentCommits, err := git.GetRecentCommitMessages(5)
-	if err != nil {
-		recentCommits = []string{}
-	}
-	provider, err := createProvider(cfg.DefaultProvider, providerCfg, cfg.GetSystemPrompt())
-	if err != nil {
-		return err
-	}
-	ctx := context.Background()
-	message, err := provider.GenerateCommitMessage(ctx, diff, recentCommits)
-	if err != nil {
-		return fmt.Errorf("failed to generate message: %w", err)
-	}
 	fmt.Printf("Committing with message: %s\n", message)
 	if err := git.DoCommit(message); err != nil {
 		return err
@@ -250,6 +172,65 @@ var commitCmd = &cobra.Command{
 	Use:   "commit",
 	Short: "Generate message and commit changes",
 	RunE:  runCommit,
+}
+
+// generateWorkflow encapsulates the shared workflow for generating commit messages
+// Returns the generated message, the config used, and any error
+func generateWorkflow(cfgFile string, autoAdd bool) (string, *config.Config, error) {
+	if !git.IsGitRepo() {
+		return "", nil, fmt.Errorf("not a git repository")
+	}
+
+	cfg, err := config.Load(cfgFile)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to load config: %w", err)
+	}
+
+	// Handle auto_add: if enabled, always stage all changes unconditionally
+	if cfg.AutoAdd {
+		fmt.Println("Auto-adding all changes...")
+		if err := git.AddAll(); err != nil {
+			return "", nil, fmt.Errorf("failed to auto-add changes: %w", err)
+		}
+	}
+
+	// Check if we have staged changes to generate a message from
+	if !git.HasStagedChanges() {
+		return "", nil, fmt.Errorf("no staged changes found. Run 'git add' first or enable auto_add in config")
+	}
+
+	providerCfg, err := cfg.GetDefaultProvider()
+	if err != nil {
+		return "", nil, err
+	}
+
+	diff, err := git.GetStagedDiff()
+	if err != nil {
+		return "", nil, err
+	}
+
+	recentCommits, err := git.GetRecentCommitMessages(5)
+	if err != nil {
+		recentCommits = []string{}
+	}
+
+	provider, err := createProvider(cfg.DefaultProvider, providerCfg, cfg.GetSystemPrompt())
+	if err != nil {
+		return "", nil, err
+	}
+
+	ctx := context.Background()
+	message, err := provider.GenerateCommitMessage(ctx, diff, recentCommits)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to generate message: %w", err)
+	}
+
+	// Validate that we got a non-empty message
+	if strings.TrimSpace(message) == "" {
+		return "", nil, fmt.Errorf("generated message is empty - please try again or check your API key and model settings")
+	}
+
+	return message, cfg, nil
 }
 
 // createProvider creates an LLM provider based on the configuration

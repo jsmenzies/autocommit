@@ -1,12 +1,12 @@
 package llm
 
 import (
+	"autocommit/internal/config"
+	"autocommit/internal/debug"
 	"context"
 	"fmt"
 	"net/http"
 	"strings"
-
-	"autocommit/internal/debug"
 )
 
 // ZaiAPIEndpoint is the z.ai API endpoint for chat completions
@@ -49,7 +49,7 @@ func (z *ZaiProvider) GenerateCommitMessage(ctx context.Context, diff string, re
 	// Use custom system prompt if provided, otherwise use default
 	systemPrompt := z.SystemPrompt
 	if systemPrompt == "" {
-		systemPrompt = GetDefaultSystemPrompt()
+		systemPrompt = config.DefaultSystemPrompt
 	}
 	debug.Printf("[DEBUG] System prompt length: %d chars\n", len(systemPrompt))
 

@@ -1,8 +1,6 @@
 package tui
 
 import (
-	"autocommit/internal/config"
-
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -10,11 +8,7 @@ func (m model) updatePromptEditor(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "ctrl+s":
 		// Save the prompt
-		if m.config == nil {
-			m.config = &config.Config{
-				Providers: make(map[string]config.ProviderConfig),
-			}
-		}
+		m.ensureConfig()
 		m.config.SystemPrompt = m.promptTextarea.Value()
 		if err := m.saveConfig(); err != nil {
 			return m, nil

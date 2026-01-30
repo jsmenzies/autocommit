@@ -122,3 +122,13 @@ func newStyles() *styles {
 		instruction: lipgloss.NewStyle().Foreground(lipgloss.Color("#666666")).MarginTop(1),
 	}
 }
+
+// ensureConfig initializes the config if it's nil
+// Call this before accessing m.config in any screen that modifies configuration
+func (m *model) ensureConfig() {
+	if m.config == nil {
+		m.config = &config.Config{
+			Providers: make(map[string]config.ProviderConfig),
+		}
+	}
+}

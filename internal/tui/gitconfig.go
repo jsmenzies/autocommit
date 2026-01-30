@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"autocommit/internal/config"
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -19,11 +18,7 @@ func (m model) updateGitConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "enter":
 		// Toggle the selected option
-		if m.config == nil {
-			m.config = &config.Config{
-				Providers: make(map[string]config.ProviderConfig),
-			}
-		}
+		m.ensureConfig()
 
 		switch m.menuCursor {
 		case 0:
