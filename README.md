@@ -1,180 +1,167 @@
-# AutoCommit
+# AutoCommit (Zig Rewrite)
 
 A CLI tool that analyzes Git history and generates conventional commit messages using LLM providers.
 
-## Features
+> **Status**: Work in progress - Zig rewrite at Stage 4 of migration
 
-- 🤖 AI-powered commit message generation
-- 📝 Follows conventional commits specification
-- ⚙️ Configurable LLM providers (z.ai, OpenAI, and Groq)
-- 🖥️ Cross-platform: Windows, macOS, Linux
+## Current Implementation Status
+
+### ✅ Implemented
+- CLI argument parsing with help, version, and config commands
+- Configuration management (JSON-based)
+- Cross-platform config file paths (macOS/Linux)
+- GitHub CI/CD workflows (PR checks, releases)
+- Debug mode support
+
+### 🚧 Not Yet Implemented
+- Git operations (diff, commit, push)
+- HTTP client for API calls
+- LLM provider implementations (z.ai, OpenAI, Groq)
+- Commit message generation
+- Interactive prompts
 
 ## Installation
 
-### Homebrew (macOS / Linux)
+### Homebrew (macOS/Linux)
 
 ```bash
-brew tap jsmenzies/autocommit
+brew tap jsmenzies/tap
 brew install autocommit
-```
-
-### Scoop (Windows)
-
-```powershell
-scoop bucket add autocommit https://github.com/jsmenzies/scoop-autocommit
-scoop install autocommit
 ```
 
 ### From Source
 
+Requires Zig 0.13.0 or later:
+
 ```bash
-go install github.com/jsmenzies/autocommit/cmd/autocommit@latest
+git clone https://github.com/jsmenzies/autocommit.git
+cd autocommit
+zig build
 ```
+
+The binary will be at `zig-out/bin/autocommit`.
 
 ### Pre-built Binaries
 
-Download the latest release from the [releases page](https://github.com/jsmenzies/autocommit/releases).
-
-## Quick Start
-
-### Interactive TUI (Recommended)
-
-Simply run `autocommit` to launch the interactive configuration TUI:
-
-```bash
-autocommit
-```
-
-This will open a menu where you can:
-- Configure LLM provider and API key
-- Edit the system prompt for commit generation
-- Configure Git settings (auto-add)
-
-### CLI Configuration
-
-Alternatively, you can configure via CLI:
-
-```bash
-autocommit config init
-autocommit config set providers.zai.api_key YOUR_API_KEY
-```
-
-### Generate Commit Messages
-
-**Quick generate (bypasses TUI):**
-```bash
-autocommit -g
-# or
-autocommit --generate
-```
-
-**With auto-add enabled:**
-```bash
-autocommit commit
-```
-
-## Configuration
-
-The configuration file is stored at:
-- **macOS:** `~/Library/Application Support/autocommit/config.yaml`
-- **Linux:** `~/.config/autocommit/config.yaml`
-- **Windows:** `%APPDATA%\autocommit\config.yaml`
-
-### Example Configuration
-
-```yaml
-default_provider: zai
-auto_add: true
-system_prompt: ""
-providers:
-  zai:
-    apikey: your-zai-api-key-here
-    model: glm-4.7
-  openai:
-    apikey: your-openai-api-key-here
-    model: gpt-4o-mini
-  groq:
-    apikey: your-groq-api-key-here
-    model: llama-3.1-8b-instant
-```
-
-### Configuration Options
-
-- `default_provider` - Which LLM provider to use (currently only "zai")
-- `auto_add` - Automatically run `git add .` if no staged changes (default: false)
-- `system_prompt` - Custom prompt for commit message generation (empty = use default)
-- `providers.zai.apikey` - Your z.ai API key
-- `providers.zai.model` - Model to use: `glm-4.7-Flash`, `glm-4.7-FlashX`, or `glm-4.7`
-
-### Models
-
-Available z.ai models:
-- **glm-4.7-Flash** - Lightweight, free tier (recommended for most users)
-- **glm-4.7-FlashX** - Faster version with higher rate limits
-- **glm-4.7** - Full flagship model (requires API credits)
+Download from [releases page](https://github.com/jsmenzies/autocommit/releases) (coming soon).
 
 ## Usage
 
 ### Commands
 
-- `autocommit` - Launch interactive TUI for configuration
-- `autocommit -g, --generate` - Generate commit message for staged changes (bypass TUI)
-- `autocommit commit` - Generate message and automatically commit
-- `autocommit generate` - Generate commit message interactively
-- `autocommit config init` - Create initial configuration file
-- `autocommit config show` - Display current configuration
-- `autocommit config set <key> <value>` - Update configuration value
+```bash
+autocommit                    # Default: generate commit message (placeholder)
+autocommit help               # Show help
+autocommit --help             # Show help
+autocommit -h                 # Show help
+autocommit version            # Show version
+autocommit --version          # Show version
+autocommit -v                 # Show version
+autocommit config             # Open config in default editor
+autocommit config print       # Display current configuration
+```
 
 ### Options
 
-- `--config <path>` - Use custom configuration file
-- `-g, --generate` - Run generate directly (bypass TUI)
-- `--version` - Show version information
-- `--help` - Show help message
+- `-p, --provider <name>` - Override provider (zai, openai, groq)
+- `-m, --model <name>` - Override model
+- `-d, --debug` - Enable debug output
 
-## System Prompt
+### Examples
 
-The default system prompt instructs the LLM to generate conventional commit messages following best practices:
+```bash
+# Generate commit message using default provider and model from config
+autocommit
 
-- Format: `<type>(<scope>): <subject>`
-- Types: feat, fix, docs, style, refactor, test, chore
-- Scope is optional - omit if not needed
-- Keep subject under 72 characters
-- Use present tense, imperative mood
+# Generate with specific provider and model overrides
+autocommit -p groq -m llama-3.1-8b-instant
 
-You can customize the prompt via the TUI (Git Configuration → Edit System Prompt) or by editing the `system_prompt` field in your config file.
+# Edit configuration in default editor
+autocommit config
 
-## Troubleshooting
+# Show current configuration
+autocommit config print
 
-### "Insufficient balance or no resource package"
+# Show help
+autocommit help
+```
 
-Your z.ai account needs API credits. The free tier includes `glm-4.7-Flash`, but other models require a subscription. Try switching to `glm-4.7-Flash` in the TUI.
+## Configuration
 
-### "Unknown Model" error
+Configuration is stored as JSON at `~/.config/autocommit/config.json` by default on both macOS and Linux.
 
-Make sure you're using one of the supported model names:
-- `glm-4.7-Flash`
-- `glm-4.7-FlashX`
-- `glm-4.7`
+If the `XDG_CONFIG_HOME` environment variable is set, the config will be stored at `$XDG_CONFIG_HOME/autocommit/config.json` instead.
+
+### Example Configuration
+
+Run `autocommit config` to create and edit the configuration file.
+
+> **Note**: Groq offers a free tier for many models. Sign up at https://groq.com to get an API key.
+
+```json
+{
+  "default_provider": "groq",
+  "auto_add": false,
+  "auto_push": false,
+  "system_prompt": "You are a commit message generator. Analyze the git diff and create a conventional commit message following best practices.",
+  "providers": {
+    "groq": {
+      "api_key": "your-groq-api-key-here",
+      "model": "llama-3.1-8b-instant",
+      "endpoint": "https://api.groq.com/openai/v1/chat/completions"
+    }
+  }
+}
+```
+
+### Configuration Options
+
+- `default_provider` - Which LLM provider to use (zai, openai, groq)
+- `auto_add` - Automatically run `git add .` if no staged changes
+- `auto_push` - Automatically push after committing
+- `system_prompt` - Custom prompt for commit message generation
+- `providers.{name}.api_key` - API key for the provider
+- `providers.{name}.model` - Model to use
+- `providers.{name}.endpoint` - API endpoint URL
+
+## Build Commands
+
+For development and testing:
+
+```bash
+zig build              # Development build
+zig build test         # Run tests
+zig build run          # Build and run
+zig build -Doptimize=ReleaseSmall  # Optimized build
+```
 
 ## Development
 
-### Prerequisites
-
-- Go 1.21 or later
-- Git
-
-### Building
+### Running Tests
 
 ```bash
-go build ./cmd/autocommit
+zig build test
 ```
 
-### Testing
+### Cross Compilation
 
 ```bash
-go test ./...
+# macOS ARM64
+zig build -Dtarget=aarch64-macos -Doptimize=ReleaseSmall
+
+# Linux x86_64 (static)
+zig build -Dtarget=x86_64-linux-musl -Doptimize=ReleaseSmall
 ```
+
+## Migration from Go
+
+This is a ground-up rewrite from Go to Zig with the following goals:
+- Smaller binaries (~200KB vs ~3MB)
+- Faster startup times
+- Simpler architecture (no TUI, file-based config)
+- Standard library only (minimal dependencies)
+
+See [MIGRATION_PLAN.md](./MIGRATION_PLAN.md) for detailed migration stages.
 
 ## License
 

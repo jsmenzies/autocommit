@@ -433,8 +433,7 @@ const ProviderConfig = struct {
 **Example config template:**
 ```json
 {
-  "_comment": "AutoCommit Configuration - Edit this file to customize your settings",
-  "default_provider": "zai",
+  "default_provider": "groq",
   "auto_add": false,
   "auto_push": false,
   "system_prompt": "You are a commit message generator. Analyze the git diff and create a conventional commit message following best practices.",

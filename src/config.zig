@@ -80,8 +80,7 @@ pub fn ensureConfigDir(allocator: std.mem.Allocator) !void {
 /// Default configuration template
 pub const DEFAULT_CONFIG =
     \\{
-    \\  "_comment": "AutoCommit Configuration - Edit this file to customize your settings",
-    \\  "default_provider": "zai",
+    \\  "default_provider": "groq",
     \\  "auto_add": false,
     \\  "auto_push": false,
     \\  "system_prompt": "You are a commit message generator. Analyze the git diff and create a conventional commit message.\nFollow these rules:\n- Use format: <type>(<scope>): <subject>\n- Types: feat, fix, docs, style, refactor, test, chore\n- Scope is optional - omit if not needed\n- Keep subject under 72 characters\n- Use present tense, imperative mood\n- Be specific but concise\n- Do not include any explanation, only output the commit message\n- Do not use markdown code blocks\n\nExamples:\n- feat(auth): add password validation to login form\n- fix(api): handle nil pointer in user service\n- docs(readme): update installation instructions\n- refactor(db): optimize query performance with index\n- feat: add new feature without scope",

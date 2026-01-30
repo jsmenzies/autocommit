@@ -145,6 +145,7 @@ const Color = struct {
     const yellow = "\x1b[33m";
     const cyan = "\x1b[36m";
     const gray = "\x1b[90m";
+    const magenta = "\x1b[35m";
 };
 
 pub fn printConfigInfo(allocator: std.mem.Allocator, writer: anytype) !void {
@@ -197,7 +198,7 @@ pub fn printConfigInfo(allocator: std.mem.Allocator, writer: anytype) !void {
         try writer.print("  Auto Push: {s}disabled{s}\n", .{ Color.gray, Color.reset });
     }
 
-    try writer.print("  {s}System Prompt:{s}\n{s}\n", .{ Color.bold, Color.reset, cfg.system_prompt });
+    try writer.print("  {s}System Prompt:{s}\n{s}{s}{s}\n", .{ Color.bold, Color.reset, Color.magenta, cfg.system_prompt, Color.reset });
 
     // Show provider info
     try writer.print("\n{s}Providers:{s}\n", .{ Color.bold, Color.reset });
