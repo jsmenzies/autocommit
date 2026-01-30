@@ -11,6 +11,9 @@ import (
 	"time"
 )
 
+// ZaiAPIEndpoint is the z.ai API endpoint for chat completions
+const ZaiAPIEndpoint = "https://api.z.ai/api/paas/v4/chat/completions"
+
 type Provider interface {
 	GenerateCommitMessage(ctx context.Context, diff string, recentCommits []string) (string, error)
 	Name() string
@@ -52,7 +55,7 @@ func NewZaiProvider(apiKey, model, systemPrompt string) *ZaiProvider {
 	return &ZaiProvider{
 		APIKey:       apiKey,
 		Model:        model,
-		BaseURL:      "https://api.z.ai/api/paas/v4/chat/completions",
+		BaseURL:      ZaiAPIEndpoint,
 		SystemPrompt: systemPrompt,
 		client: &http.Client{
 			Timeout: 30 * time.Second,

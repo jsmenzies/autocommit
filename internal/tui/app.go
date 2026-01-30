@@ -94,6 +94,11 @@ func (m *model) updateMenuItems() {
 			action:      func() tea.Cmd { return nil },
 		},
 		{
+			title:       "Git Configuration",
+			description: "Configure git auto-add and other git settings",
+			action:      func() tea.Cmd { return nil },
+		},
+		{
 			title:       "Exit",
 			description: "Save and exit configuration",
 			action:      func() tea.Cmd { return tea.Quit },
@@ -130,6 +135,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateProviderConfig(msg)
 		case screenPromptEditor:
 			return m.updatePromptEditor(msg)
+		case screenGitConfig:
+			return m.updateGitConfig(msg)
 		}
 
 	case tea.WindowSizeMsg:
@@ -158,6 +165,8 @@ func (m model) View() string {
 		content = m.viewProviderConfig()
 	case screenPromptEditor:
 		content = m.viewPromptEditor()
+	case screenGitConfig:
+		content = m.viewGitConfig()
 	}
 
 	helpView := m.help.View(m.keys)

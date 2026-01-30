@@ -18,6 +18,7 @@ const (
 	screenProviderList
 	screenProviderConfig
 	screenPromptEditor
+	screenGitConfig
 )
 
 type providerInfo struct {
@@ -46,6 +47,8 @@ type model struct {
 	// Provider config form
 	providerConfigProvider string
 	apiKeyInput            textinput.Model
+	apiKeyAlreadySet       bool
+	apiKeyOriginalValue    string
 	modelCursor            int
 	// Prompt editor
 	promptTextarea textarea.Model

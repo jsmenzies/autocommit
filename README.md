@@ -12,15 +12,29 @@ A CLI tool that analyzes Git history and generates conventional commit messages 
 
 ## Installation
 
+### Homebrew (macOS / Linux)
+
+```bash
+brew tap jsmenzies/autocommit
+brew install autocommit
+```
+
+### Scoop (Windows)
+
+```powershell
+scoop bucket add autocommit https://github.com/jsmenzies/scoop-autocommit
+scoop install autocommit
+```
+
 ### From Source
 
 ```bash
-go install github.com/username/autocommit/cmd/autocommit@latest
+go install github.com/jsmenzies/autocommit/cmd/autocommit@latest
 ```
 
 ### Pre-built Binaries
 
-Download the latest release from the [releases page](https://github.com/username/autocommit/releases).
+Download the latest release from the [releases page](https://github.com/jsmenzies/autocommit/releases).
 
 ## Quick Start
 

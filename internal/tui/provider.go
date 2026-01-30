@@ -25,8 +25,18 @@ func (m model) updateProviderList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Check if provider is already configured
 		if m.config != nil && m.config.Providers != nil {
 			if providerCfg, exists := m.config.Providers[selectedProvider.name]; exists {
-				// Pre-fill existing values
-				m.apiKeyInput.SetValue(providerCfg.APIKey)
+				// Track that API key is already set but don't display it
+				if providerCfg.APIKey != "" {
+					m.apiKeyAlreadySet = true
+					m.apiKeyOriginalValue = providerCfg.APIKey
+					m.apiKeyInput.SetValue("")
+					m.apiKeyInput.Placeholder = "(already set)"
+				} else {
+					m.apiKeyAlreadySet = false
+					m.apiKeyOriginalValue = ""
+					m.apiKeyInput.SetValue("")
+					m.apiKeyInput.Placeholder = "Enter your API key..."
+				}
 				// Find model index
 				for i, model := range selectedProvider.models {
 					if model == providerCfg.Model {
@@ -36,12 +46,18 @@ func (m model) updateProviderList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				}
 			} else {
 				// Reset inputs for new provider
+				m.apiKeyAlreadySet = false
+				m.apiKeyOriginalValue = ""
 				m.apiKeyInput.SetValue("")
+				m.apiKeyInput.Placeholder = "Enter your API key..."
 				m.modelCursor = 0
 			}
 		} else {
 			// Reset inputs for new provider
+			m.apiKeyAlreadySet = false
+			m.apiKeyOriginalValue = ""
 			m.apiKeyInput.SetValue("")
+			m.apiKeyInput.Placeholder = "Enter your API key..."
 			m.modelCursor = 0
 		}
 		m.apiKeyInput.Focus()
@@ -122,8 +138,15 @@ func (m model) updateProviderConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 
+		// Determine API key to save
+		apiKey := m.apiKeyInput.Value()
+		if apiKey == "" && m.apiKeyAlreadySet {
+			// Use original value if input is empty and key was already set
+			apiKey = m.apiKeyOriginalValue
+		}
+
 		m.config.Providers[m.providerConfigProvider] = config.ProviderConfig{
-			APIKey: m.apiKeyInput.Value(),
+			APIKey: apiKey,
 			Model:  providerInfo.models[m.modelCursor],
 		}
 		m.config.DefaultProvider = m.providerConfigProvider
@@ -133,8 +156,12 @@ func (m model) updateProviderConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.screen = screenProviderList
+		m.apiKeyAlreadySet = false
+		m.apiKeyOriginalValue = ""
 	case "esc":
 		m.screen = screenProviderList
+		m.apiKeyAlreadySet = false
+		m.apiKeyOriginalValue = ""
 	case "q", "ctrl+c":
 		return m, tea.Quit
 	}
@@ -149,7 +176,13 @@ func (m model) viewProviderConfig() string {
 
 	// API Key field
 	apiKeyLabel := s.label.Render("API Key:")
-	apiKeyValue := m.apiKeyInput.View()
+	var apiKeyValue string
+	if m.apiKeyAlreadySet && m.apiKeyInput.Value() == "" {
+		// Show custom message when key is already set but input is empty
+		apiKeyValue = s.success.Render("(already set - type to change)")
+	} else {
+		apiKeyValue = m.apiKeyInput.View()
+	}
 
 	// Model selection
 	var modelOptions []string

@@ -13,9 +13,9 @@ const (
 )
 
 type ProviderConfig struct {
-	APIKey  string `mapstructure:"api_key"`
+	APIKey  string `mapstructure:"apikey"`
 	Model   string `mapstructure:"model"`
-	BaseURL string `mapstructure:"base_url,omitempty"`
+	BaseURL string `mapstructure:"baseurl,omitempty"`
 }
 
 type Config struct {
@@ -30,6 +30,7 @@ const DefaultSystemPrompt = `You are a commit message generator. Analyze the git
 Follow these rules:
 - Use format: <type>(<scope>): <subject>
 - Types: feat, fix, docs, style, refactor, test, chore
+- Scope is optional - omit if not needed
 - Keep subject under 72 characters
 - Use present tense, imperative mood
 - Be specific but concise
@@ -40,7 +41,8 @@ Examples:
 - feat(auth): add password validation to login form
 - fix(api): handle nil pointer in user service
 - docs(readme): update installation instructions
-- refactor(db): optimize query performance with index`
+- refactor(db): optimize query performance with index
+- feat: add new feature without scope`
 
 func GetConfigDir() (string, error) {
 	configDir, err := os.UserConfigDir()

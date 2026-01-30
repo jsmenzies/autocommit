@@ -29,7 +29,9 @@ func (m model) updateMainMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.promptTextarea.SetValue(config.DefaultSystemPrompt)
 			}
 			m.screen = screenPromptEditor
-		case 2: // Exit
+		case 2: // Git Configuration
+			m.screen = screenGitConfig
+		case 3: // Exit
 			return m, tea.Quit
 		}
 	case "q", "ctrl+c":
