@@ -1,7 +1,7 @@
 package llm
 
 import (
-	"autocommit/internal/config"
+	"autocommit/internal/prompt"
 	"context"
 	"fmt"
 	"net/http"
@@ -36,7 +36,7 @@ func (o *OpenAIProvider) GenerateCommitMessage(ctx context.Context, diff string,
 	// Use custom system prompt if provided, otherwise use default
 	systemPrompt := o.SystemPrompt
 	if systemPrompt == "" {
-		systemPrompt = config.DefaultSystemPrompt
+		systemPrompt = prompt.GetDefaultSystemPrompt()
 	}
 
 	userContent := BuildUserContent(diff, recentCommits)

@@ -1,8 +1,8 @@
 package llm
 
 import (
-	"autocommit/internal/config"
 	"autocommit/internal/debug"
+	"autocommit/internal/prompt"
 	"context"
 	"fmt"
 	"net/http"
@@ -45,7 +45,7 @@ func (z *ZaiProvider) GenerateCommitMessage(ctx context.Context, diff string, re
 	// Use custom system prompt if provided, otherwise use default
 	systemPrompt := z.SystemPrompt
 	if systemPrompt == "" {
-		systemPrompt = config.DefaultSystemPrompt
+		systemPrompt = prompt.GetDefaultSystemPrompt()
 	}
 	debug.Printf("[DEBUG] System prompt length: %d chars\n", len(systemPrompt))
 

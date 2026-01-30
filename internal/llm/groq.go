@@ -1,7 +1,7 @@
 package llm
 
 import (
-	"autocommit/internal/config"
+	"autocommit/internal/prompt"
 	"context"
 	"fmt"
 	"net/http"
@@ -36,7 +36,7 @@ func (g *GroqProvider) GenerateCommitMessage(ctx context.Context, diff string, r
 	// Use custom system prompt if provided, otherwise use default
 	systemPrompt := g.SystemPrompt
 	if systemPrompt == "" {
-		systemPrompt = config.DefaultSystemPrompt
+		systemPrompt = prompt.GetDefaultSystemPrompt()
 	}
 
 	userContent := BuildUserContent(diff, recentCommits)
