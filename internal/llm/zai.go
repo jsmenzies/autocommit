@@ -137,6 +137,13 @@ Examples:
 	}
 
 	if resp.StatusCode != http.StatusOK {
+		// Check for specific error codes
+		if resp.StatusCode == 429 {
+			if strings.Contains(string(body), "Insufficient balance") || strings.Contains(string(body), "recharge") {
+				return "", fmt.Errorf("z.ai account has insufficient balance. Please recharge your account at https://z.ai")
+			}
+			return "", fmt.Errorf("API rate limit exceeded. Please try again later")
+		}
 		return "", fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
