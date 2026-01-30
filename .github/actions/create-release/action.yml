@@ -1,0 +1,81 @@
+name: 'Create GitHub Release'
+description: 'Create a GitHub release with changelog and artifacts'
+
+inputs:
+  tag:
+    description: 'Tag name for the release'
+    required: true
+  artifacts-path:
+    description: 'Path to artifacts directory'
+    required: true
+    default: 'artifacts'
+  prerelease:
+    description: 'Mark as prerelease'
+    required: false
+    default: 'false'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Generate Changelog
+      id: changelog
+      shell: bash
+      run: |
+        TAG="${{ inputs.tag }}"
+        
+        # Get commits since last tag
+        LAST_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
+        if [ -z "$LAST_TAG" ]; then
+          COMMITS=$(git log --pretty=format:"- %s" --no-merges)
+        else
+          COMMITS=$(git log ${LAST_TAG}..HEAD --pretty=format:"- %s" --no-merges)
+        fi
+        
+        # Categorize commits
+        FEATS=$(echo "$COMMITS" | grep -E "^- feat" || true)
+        FIXES=$(echo "$COMMITS" | grep -E "^- fix" || true)
+        DOCS=$(echo "$COMMITS" | grep -E "^- docs" || true)
+        OTHER=$(echo "$COMMITS" | grep -vE "^- (feat|fix|docs)" || true)
+        
+        # Build release notes
+        NOTES="## What's New\n\n"
+        if [ ! -z "$FEATS" ]; then
+          NOTES="${NOTES}### Features\n${FEATS}\n\n"
+        fi
+        if [ ! -z "$FIXES" ]; then
+          NOTES="${NOTES}### Bug Fixes\n${FIXES}\n\n"
+        fi
+        if [ ! -z "$DOCS" ]; then
+          NOTES="${NOTES}### Documentation\n${DOCS}\n\n"
+        fi
+        if [ ! -z "$OTHER" ]; then
+          NOTES="${NOTES}### Other Changes\n${OTHER}\n\n"
+        fi
+        
+        NOTES="${NOTES}## Installation\n\n"
+        NOTES="${NOTES}### macOS (Apple Silicon)\n\`\`\`bash\ncurl -L -o autocommit https://github.com/${{ github.repository }}/releases/download/${TAG}/autocommit-macos-arm64\nchmod +x autocommit\nsudo mv autocommit /usr/local/bin/\n\`\`\`\n\n"
+        NOTES="${NOTES}### Linux (x86_64)\n\`\`\`bash\ncurl -L -o autocommit https://github.com/${{ github.repository }}/releases/download/${TAG}/autocommit-linux-x86_64\nchmod +x autocommit\nsudo mv autocommit /usr/local/bin/\n\`\`\`\n\n"
+        
+        MACOS_SHA=$(cat ${{ inputs.artifacts-path }}/autocommit-macos-arm64.sha256 | cut -d' ' -f1)
+        LINUX_SHA=$(cat ${{ inputs.artifacts-path }}/autocommit-linux-x86_64.sha256 | cut -d' ' -f1)
+        
+        NOTES="${NOTES}## Checksums\n\n| File | SHA256 |\n|------|--------|"
+        NOTES="${NOTES}| autocommit-macos-arm64 | \`${MACOS_SHA}\` |\n"
+        NOTES="${NOTES}| autocommit-linux-x86_64 | \`${LINUX_SHA}\` |\n"
+        
+        echo "notes<<EOF" >> $GITHUB_OUTPUT
+        echo -e "$NOTES" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ inputs.tag }}
+        body: ${{ steps.changelog.outputs.notes }}
+        files: |
+          ${{ inputs.artifacts-path }}/autocommit-macos-arm64
+          ${{ inputs.artifacts-path }}/autocommit-macos-arm64.sha256
+          ${{ inputs.artifacts-path }}/autocommit-linux-x86_64
+          ${{ inputs.artifacts-path }}/autocommit-linux-x86_64.sha256
+        draft: false
+        prerelease: ${{ inputs.prerelease }}

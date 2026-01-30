@@ -1,0 +1,40 @@
+name: 'Generate Checksum'
+description: 'Generate SHA256 checksum for a binary'
+
+inputs:
+  file:
+    description: 'File to generate checksum for'
+    required: true
+  output-name:
+    description: 'Name for the checksum file'
+    required: false
+    default: ''
+
+outputs:
+  checksum:
+    description: 'The SHA256 checksum value'
+    value: ${{ steps.generate.outputs.checksum }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Generate Checksum
+      id: generate
+      shell: bash
+      run: |
+        if [[ "${{ runner.os }}" == "macOS" ]]; then
+          shasum -a 256 ${{ inputs.file }} > ${{ inputs.file }}.sha256
+        else
+          sha256sum ${{ inputs.file }} > ${{ inputs.file }}.sha256
+        fi
+        
+        CHECKSUM=$(cut -d' ' -f1 ${{ inputs.file }}.sha256)
+        echo "checksum=$CHECKSUM" >> $GITHUB_OUTPUT
+        echo "Generated checksum: $CHECKSUM"
+        cat ${{ inputs.file }}.sha256
+    
+    - name: Upload Checksum
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.file }}-checksum
+        path: ${{ inputs.file }}.sha256

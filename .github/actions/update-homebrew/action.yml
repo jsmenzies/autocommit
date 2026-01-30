@@ -1,0 +1,87 @@
+name: 'Update Homebrew Tap'
+description: 'Update formula in Homebrew tap repository'
+
+inputs:
+  version:
+    description: 'Version string (without v prefix)'
+    required: true
+  tag:
+    description: 'Full tag name (with v prefix)'
+    required: true
+  sha256:
+    description: 'SHA256 checksum for macOS binary'
+    required: true
+  tap-repo:
+    description: 'Homebrew tap repository (owner/repo)'
+    required: true
+  formula-path:
+    description: 'Path to formula file'
+    required: false
+    default: 'Formula/autocommit.rb'
+  github-token:
+    description: 'GitHub token for pushing to tap'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout homebrew tap
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.tap-repo }}
+        token: ${{ inputs.github-token }}
+        path: homebrew-tap
+    
+    - name: Update Homebrew formula
+      shell: bash
+      run: |
+        cd homebrew-tap
+        
+        FORMULA="${{ inputs.formula-path }}"
+        
+        # Check if formula exists, create if not
+        if [ ! -f "$FORMULA" ]; then
+          mkdir -p $(dirname "$FORMULA")
+          cat > "$FORMULA" << 'FORMULA_TEMPLATE'
+        class Autocommit < Formula
+          desc "AI-powered conventional commit message generator"
+          homepage "https://github.com/${{ github.repository }}"
+          version "VERSION_PLACEHOLDER"
+          
+          on_arm do
+            url "URL_PLACEHOLDER"
+            sha256 "SHA256_PLACEHOLDER"
+          end
+          
+          def install
+            bin.install "autocommit-macos-arm64" => "autocommit"
+          end
+          
+          test do
+            system "#{bin}/autocommit", "--version"
+          end
+        end
+        FORMULA_TEMPLATE
+        fi
+        
+        # Update version
+        sed -i "s/version \"[^\"]*\"/version \"${{ inputs.version }}\"/" "$FORMULA"
+        
+        # Update URL
+        sed -i "s|url \"[^\"]*\"|url \"https://github.com/${{ github.repository }}/releases/download/${{ inputs.tag }}/autocommit-macos-arm64\"|" "$FORMULA"
+        
+        # Update SHA256
+        sed -i "s/sha256 \"[^\"]*\"/sha256 \"${{ inputs.sha256 }}\"/" "$FORMULA"
+        
+        echo "Updated formula:"
+        cat "$FORMULA"
+    
+    - name: Commit and push changes
+      shell: bash
+      run: |
+        cd homebrew-tap
+        git config user.name "GitHub Actions"
+        git config user.email "actions@github.com"
+        git add .
+        git commit -m "Update autocommit to ${{ inputs.tag }}" || echo "No changes to commit"
+        git push

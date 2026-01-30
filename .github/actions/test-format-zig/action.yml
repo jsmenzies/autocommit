@@ -1,0 +1,31 @@
+name: 'Test and Format Zig'
+description: 'Run tests and check formatting for Zig code'
+
+inputs:
+  target:
+    description: 'Target architecture for build test'
+    required: true
+  zig-version:
+    description: 'Zig version to use'
+    required: false
+    default: '0.13.0'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Zig
+      uses: mlugg/setup-zig@v1
+      with:
+        version: ${{ inputs.zig-version }}
+    
+    - name: Build
+      shell: bash
+      run: zig build -Dtarget=${{ inputs.target }} -Doptimize=ReleaseSmall
+    
+    - name: Test
+      shell: bash
+      run: zig build test
+    
+    - name: Check formatting
+      shell: bash
+      run: zig fmt --check src/

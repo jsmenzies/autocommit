@@ -1,0 +1,34 @@
+name: 'Build Zig Binary'
+description: 'Build a Zig binary for a specific target'
+
+inputs:
+  target:
+    description: 'Target architecture (e.g., aarch64-macos, x86_64-linux-musl)'
+    required: true
+  name:
+    description: 'Output binary name'
+    required: true
+  zig-version:
+    description: 'Zig version to use'
+    required: false
+    default: '0.13.0'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Zig
+      uses: mlugg/setup-zig@v1
+      with:
+        version: ${{ inputs.zig-version }}
+    
+    - name: Build Release Binary
+      shell: bash
+      run: |
+        zig build -Dtarget=${{ inputs.target }} -Doptimize=ReleaseSmall -Dstrip=true
+        mv zig-out/bin/autocommit ${{ inputs.name }}
+    
+    - name: Upload Binary
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.name }}
+        path: ${{ inputs.name }}
