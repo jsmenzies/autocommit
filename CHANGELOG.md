@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.0](https://github.com/jsmenzies/autocommit/compare/v1.1.0...v1.2.0) (2026-01-30)
+
+
+### Features
+
+* add comprehensive migration plan from Go to Zig ([56fb381](https://github.com/jsmenzies/autocommit/commit/56fb381c0bf7875616c496f53aee3d66a46cfe4d))
+* add comprehensive migration plan from Go to Zig ([64a2acf](https://github.com/jsmenzies/autocommit/commit/64a2acf2cda56a43db08a8c710c10d8e9bd26723))
+
 ## [1.1.0](https://github.com/jsmenzies/autocommit/compare/v1.0.0...v1.1.0) (2026-01-30)
 
 
