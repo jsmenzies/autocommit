@@ -25,32 +25,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Setup Zig
-        uses: mlugg/setup-zig@v1
+      - name: Build Zig Binary
+        uses: ./.github/actions/build-zig
         with:
-          version: 0.13.0
-      
-      - name: Build Release Binary
-        run: |
-          zig build -Dtarget=${{ matrix.target }} -Doptimize=ReleaseSmall -Dstrip=true
-          mv zig-out/bin/autocommit ${{ matrix.name }}
+          target: ${{ matrix.target }}
+          name: ${{ matrix.name }}
+          zig-version: '0.13.0'
       
       - name: Generate Checksum
-        run: |
-          if [[ "${{ runner.os }}" == "macOS" ]]; then
-            shasum -a 256 ${{ matrix.name }} > ${{ matrix.name }}.sha256
-          else
-            sha256sum ${{ matrix.name }} > ${{ matrix.name }}.sha256
-          fi
-          cat ${{ matrix.name }}.sha256
-      
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+        uses: ./.github/actions/generate-checksum
         with:
-          name: ${{ matrix.name }}
-          path: |
-            ${{ matrix.name }}
-            ${{ matrix.name }}.sha256
+          file: ${{ matrix.name }}
 
   release:
     needs: build
@@ -66,69 +51,19 @@ jobs:
           path: artifacts
           merge-multiple: true
       
-      - name: Generate Changelog
-        id: changelog
-        run: |
-          # Get commits since last tag
-          LAST_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
-          if [ -z "$LAST_TAG" ]; then
-            COMMITS=$(git log --pretty=format:"- %s" --no-merges)
-          else
-            COMMITS=$(git log ${LAST_TAG}..HEAD --pretty=format:"- %s" --no-merges)
-          fi
-          
-          # Categorize commits
-          FEATS=$(echo "$COMMITS" | grep -E "^- feat" || true)
-          FIXES=$(echo "$COMMITS" | grep -E "^- fix" || true)
-          DOCS=$(echo "$COMMITS" | grep -E "^- docs" || true)
-          OTHER=$(echo "$COMMITS" | grep -vE "^- (feat|fix|docs)" || true)
-          
-          # Build release notes
-          NOTES="## What's New\n\n"
-          if [ ! -z "$FEATS" ]; then
-            NOTES="${NOTES}### Features\n${FEATS}\n\n"
-          fi
-          if [ ! -z "$FIXES" ]; then
-            NOTES="${NOTES}### Bug Fixes\n${FIXES}\n\n"
-          fi
-          if [ ! -z "$DOCS" ]; then
-            NOTES="${NOTES}### Documentation\n${DOCS}\n\n"
-          fi
-          if [ ! -z "$OTHER" ]; then
-            NOTES="${NOTES}### Other Changes\n${OTHER}\n\n"
-          fi
-          
-          NOTES="${NOTES}## Installation\n\n"
-          NOTES="${NOTES}### macOS (Apple Silicon)\n\`\`\`bash\ncurl -L -o autocommit https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/autocommit-macos-arm64\nchmod +x autocommit\nsudo mv autocommit /usr/local/bin/\n\`\`\`\n\n"
-          NOTES="${NOTES}### Linux (x86_64)\n\`\`\`bash\ncurl -L -o autocommit https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/autocommit-linux-x86_64\nchmod +x autocommit\nsudo mv autocommit /usr/local/bin/\n\`\`\`\n\n"
-          
-          MACOS_SHA=$(cat artifacts/autocommit-macos-arm64.sha256 | cut -d' ' -f1)
-          LINUX_SHA=$(cat artifacts/autocommit-linux-x86_64.sha256 | cut -d' ' -f1)
-          
-          NOTES="${NOTES}## Checksums\n\n| File | SHA256 |\n|------|--------|"
-          NOTES="${NOTES}| autocommit-macos-arm64 | \`${MACOS_SHA}\` |\n"
-          NOTES="${NOTES}| autocommit-linux-x86_64 | \`${LINUX_SHA}\` |\n"
-          
-          echo "notes<<EOF" >> $GITHUB_OUTPUT
-          echo -e "$NOTES" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-      
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: ./.github/actions/create-release
         with:
-          body: ${{ steps.changelog.outputs.notes }}
-          files: |
-            artifacts/autocommit-macos-arm64
-            artifacts/autocommit-macos-arm64.sha256
-            artifacts/autocommit-linux-x86_64
-            artifacts/autocommit-linux-x86_64.sha256
-          draft: false
+          tag: ${{ github.ref_name }}
+          artifacts-path: artifacts
           prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') }}
 
   update-homebrew:
     needs: release
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+      
       - name: Download macOS artifact
         uses: actions/download-artifact@v4
         with:
@@ -137,6 +72,7 @@ jobs:
       
       - name: Extract version and SHA256
         id: info
+        shell: bash
         run: |
           VERSION=${{ github.ref_name }}
           VERSION=${VERSION#v}
@@ -144,46 +80,12 @@ jobs:
           
           SHA256=$(cat artifacts/autocommit-macos-arm64.sha256 | cut -d' ' -f1)
           echo "sha256=$SHA256" >> $GITHUB_OUTPUT
-          
-          echo "Version: $VERSION"
-          echo "SHA256: $SHA256"
       
-      - name: Checkout homebrew tap
-        uses: actions/checkout@v4
+      - name: Update Homebrew Tap
+        uses: ./.github/actions/update-homebrew
         with:
-          repository: jsmenzies/homebrew-autocommit
-          token: ${{ secrets.HOMEBREW_AUTOCOMMIT_TOKEN }}
-          path: homebrew-tap
-      
-      - name: Update Homebrew formula
-        run: |
-          cd homebrew-tap
-          
-          # Update the formula file
-          FORMULA="Formula/autocommit.rb"
-          if [ -f "$FORMULA" ]; then
-            # Update version
-            sed -i "s/version \"[^\"]*\"/version \"${{ steps.info.outputs.version }}\"/" "$FORMULA"
-            
-            # Update URL
-            sed -i "s|url \"[^\"]*\"|url \"https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/autocommit-macos-arm64\"|" "$FORMULA"
-            
-            # Update SHA256
-            sed -i "s/sha256 \"[^\"]*\"/sha256 \"${{ steps.info.outputs.sha256 }}\"/" "$FORMULA"
-            
-            # Show changes
-            cat "$FORMULA"
-          else
-            echo "Formula file not found: $FORMULA"
-            ls -la
-            exit 1
-          fi
-      
-      - name: Commit and push changes
-        run: |
-          cd homebrew-tap
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-          git add Formula/autocommit.rb
-          git commit -m "Update autocommit to ${{ github.ref_name }}" || echo "No changes to commit"
-          git push
+          version: ${{ steps.info.outputs.version }}
+          tag: ${{ github.ref_name }}
+          sha256: ${{ steps.info.outputs.sha256 }}
+          tap-repo: jsmenzies/homebrew-autocommit
+          github-token: ${{ secrets.HOMEBREW_AUTOCOMMIT_TOKEN }}
