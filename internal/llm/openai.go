@@ -18,13 +18,13 @@ type OpenAIProvider struct {
 // NewOpenAIProvider creates a new OpenAI provider instance
 func NewOpenAIProvider(apiKey, model, systemPrompt string) *OpenAIProvider {
 	return &OpenAIProvider{
-		BaseProvider: NewBaseProvider(apiKey, model, OpenAIAPIEndpoint, systemPrompt, "gpt-4o-mini"),
+		BaseProvider: NewBaseProvider(apiKey, model, OpenAIAPIEndpoint, systemPrompt, DefaultOpenAIModel),
 	}
 }
 
 // Name returns the provider name
 func (o *OpenAIProvider) Name() string {
-	return "openai"
+	return ProviderOpenAI
 }
 
 // GenerateCommitMessage generates a commit message using the OpenAI API
@@ -40,7 +40,7 @@ func (o *OpenAIProvider) GenerateCommitMessage(ctx context.Context, diff string,
 	}
 
 	userContent := BuildUserContent(diff, recentCommits)
-	req := BuildChatRequest(o.Model, systemPrompt, userContent, 0.7, 500)
+	req := BuildChatRequest(o.Model, systemPrompt, userContent, DefaultTemperature, DefaultMaxTokens)
 
 	chatResp, err := o.SendChatRequest(ctx, req)
 	if err != nil {

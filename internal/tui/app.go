@@ -181,10 +181,6 @@ func Run() error {
 }
 
 func (m *model) saveConfig() error {
-	if m.config == nil {
-		m.config = &config.Config{
-			Providers: make(map[string]config.ProviderConfig),
-		}
-	}
+	m.ensureConfig()
 	return config.Save(m.config)
 }

@@ -136,3 +136,13 @@ func CommitWithOptions(message string, amend bool, noVerify bool) error {
 	}
 	return nil
 }
+
+// Push pushes the current branch to its upstream remote
+func Push() error {
+	cmd := exec.Command("git", "push")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to push: %w\nOutput: %s", err, string(output))
+	}
+	return nil
+}

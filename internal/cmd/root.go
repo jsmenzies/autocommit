@@ -113,38 +113,53 @@ func init() {
 }
 
 func runGenerate(cmd *cobra.Command, args []string) error {
-	message, _, err := generateWorkflow(cfgFile, true)
-	if err != nil {
-		return err
-	}
+	const maxRegenerations = 10
 
-	fmt.Printf("\nSuggested commit message:\n%s\n\n", message)
-	action, err := promptUserAction()
-	if err != nil {
-		return err
-	}
-	switch action {
-	case "accept":
-		fmt.Println("Use 'autocommit commit' to commit with this message")
-	case "commit":
-		if err := git.DoCommit(message); err != nil {
-			return err
-		}
-		fmt.Println("Changes committed successfully!")
-	case "regenerate":
-		fmt.Println("Regenerating...")
-		return runGenerate(cmd, args)
-	case "edit":
-		edited, err := prompt.EditMessage(message)
+	for attempt := 0; attempt < maxRegenerations; attempt++ {
+		message, cfg, err := generateWorkflow(cfgFile, true)
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Edited message:\n%s\n", edited)
-		return nil
-	case "cancel":
-		fmt.Println("Cancelled")
+
+		fmt.Printf("\nSuggested commit message:\n%s\n\n", message)
+		action, err := promptUserAction()
+		if err != nil {
+			return err
+		}
+		switch action {
+		case "accept":
+			fmt.Println("Use 'autocommit commit' to commit with this message")
+			return nil
+		case "commit":
+			if err := git.DoCommit(message); err != nil {
+				return err
+			}
+			fmt.Println("Changes committed successfully!")
+			// Auto-push if enabled
+			if cfg.AutoPush {
+				fmt.Println("Auto-pushing to remote...")
+				if err := git.Push(); err != nil {
+					return fmt.Errorf("commit succeeded but push failed: %w", err)
+				}
+				fmt.Println("Changes pushed successfully!")
+			}
+			return nil
+		case "regenerate":
+			fmt.Println("Regenerating...")
+			continue
+		case "edit":
+			edited, err := prompt.EditMessage(message)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("Edited message:\n%s\n", edited)
+			return nil
+		case "cancel":
+			fmt.Println("Cancelled")
+			return nil
+		}
 	}
-	return nil
+	return fmt.Errorf("maximum regeneration attempts (%d) reached", maxRegenerations)
 }
 
 var generateCmd = &cobra.Command{
@@ -155,7 +170,7 @@ var generateCmd = &cobra.Command{
 }
 
 func runCommit(cmd *cobra.Command, args []string) error {
-	message, _, err := generateWorkflow(cfgFile, true)
+	message, cfg, err := generateWorkflow(cfgFile, true)
 	if err != nil {
 		return err
 	}
@@ -165,6 +180,15 @@ func runCommit(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	fmt.Println("Changes committed successfully!")
+
+	// Auto-push if enabled
+	if cfg.AutoPush {
+		fmt.Println("Auto-pushing to remote...")
+		if err := git.Push(); err != nil {
+			return fmt.Errorf("commit succeeded but push failed: %w", err)
+		}
+		fmt.Println("Changes pushed successfully!")
+	}
 	return nil
 }
 
@@ -235,16 +259,7 @@ func generateWorkflow(cfgFile string, autoAdd bool) (string, *config.Config, err
 
 // createProvider creates an LLM provider based on the configuration
 func createProvider(providerName string, providerCfg config.ProviderConfig, systemPrompt string) (llm.Provider, error) {
-	switch providerName {
-	case "zai":
-		return llm.NewZaiProvider(providerCfg.APIKey, providerCfg.Model, systemPrompt), nil
-	case "openai":
-		return llm.NewOpenAIProvider(providerCfg.APIKey, providerCfg.Model, systemPrompt), nil
-	case "groq":
-		return llm.NewGroqProvider(providerCfg.APIKey, providerCfg.Model, systemPrompt), nil
-	default:
-		return nil, fmt.Errorf("unsupported provider: %s", providerName)
-	}
+	return llm.CreateProvider(providerName, providerCfg.APIKey, providerCfg.Model, systemPrompt)
 }
 
 func promptUserAction() (string, error) {

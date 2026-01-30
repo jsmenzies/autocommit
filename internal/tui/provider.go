@@ -2,6 +2,7 @@ package tui
 
 import (
 	"autocommit/internal/config"
+	"autocommit/internal/llm"
 	"fmt"
 	"strings"
 
@@ -20,11 +21,11 @@ func (m model) updateProviderList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "enter":
 		selectedProvider := availableProviders[m.providerCursor]
-		m.providerConfigProvider = selectedProvider.name
+		m.providerConfigProvider = selectedProvider.Name
 
 		// Check if provider is already configured
 		if m.config != nil && m.config.Providers != nil {
-			if providerCfg, exists := m.config.Providers[selectedProvider.name]; exists {
+			if providerCfg, exists := m.config.Providers[selectedProvider.Name]; exists {
 				// Track that API key is already set but don't display it
 				if providerCfg.APIKey != "" {
 					m.apiKeyAlreadySet = true
@@ -38,7 +39,7 @@ func (m model) updateProviderList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 					m.apiKeyInput.Placeholder = "Enter your API key..."
 				}
 				// Find model index
-				for i, model := range selectedProvider.models {
+				for i, model := range selectedProvider.Models {
 					if model == providerCfg.Model {
 						m.modelCursor = i
 						break
@@ -86,8 +87,8 @@ func (m model) viewProviderList() string {
 		// Check if configured
 		status := "not configured"
 		if m.config != nil && m.config.Providers != nil {
-			if _, exists := m.config.Providers[provider.name]; exists {
-				if m.config.DefaultProvider == provider.name {
+			if _, exists := m.config.Providers[provider.Name]; exists {
+				if m.config.DefaultProvider == provider.Name {
 					status = s.success.Render("active")
 				} else {
 					status = s.value.Render("configured")
@@ -95,13 +96,13 @@ func (m model) viewProviderList() string {
 			}
 		}
 
-		items += fmt.Sprintf("%s%s %s\n", cursor, s.menuItem.Render(provider.displayName), status)
+		items += fmt.Sprintf("%s%s %s\n", cursor, s.menuItem.Render(provider.DisplayName), status)
 	}
 
 	// Show provider-specific notes for selected provider
 	selectedProvider := availableProviders[m.providerCursor]
 	var note string
-	if selectedProvider.name == "groq" {
+	if selectedProvider.Name == llm.ProviderGroq {
 		note = "\n" + s.success.Render("✓ Free Groq API: https://console.groq.com (no credit card required)") + "\n"
 	}
 
@@ -109,7 +110,7 @@ func (m model) viewProviderList() string {
 }
 
 func (m model) updateProviderConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	providerInfo := availableProviders[m.providerCursor]
+	provider := availableProviders[m.providerCursor]
 
 	switch msg.String() {
 	case "ctrl+v":
@@ -134,7 +135,7 @@ func (m model) updateProviderConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.modelCursor--
 		}
 	case "right", "l":
-		if !m.apiKeyInput.Focused() && m.modelCursor < len(providerInfo.models)-1 {
+		if !m.apiKeyInput.Focused() && m.modelCursor < len(provider.Models)-1 {
 			m.modelCursor++
 		}
 	case "enter":
@@ -150,14 +151,15 @@ func (m model) updateProviderConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 		m.config.Providers[m.providerConfigProvider] = config.ProviderConfig{
 			APIKey: apiKey,
-			Model:  providerInfo.models[m.modelCursor],
+			Model:  provider.Models[m.modelCursor],
 		}
 		m.config.DefaultProvider = m.providerConfigProvider
 
 		if err := m.saveConfig(); err != nil {
-			// Error will be displayed in a future enhancement
+			m.saveErr = err
 			return m, nil
 		}
+		m.saveErr = nil
 		m.screen = screenProviderList
 		m.apiKeyAlreadySet = false
 		m.apiKeyOriginalValue = ""
@@ -173,9 +175,9 @@ func (m model) updateProviderConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m model) viewProviderConfig() string {
 	s := m.style
-	providerInfo := availableProviders[m.providerCursor]
+	provider := availableProviders[m.providerCursor]
 
-	title := s.title.Render(fmt.Sprintf("Configure %s", providerInfo.displayName))
+	title := s.title.Render(fmt.Sprintf("Configure %s", provider.DisplayName))
 
 	// API Key field
 	apiKeyLabel := s.label.Render("API Key:")
@@ -189,7 +191,7 @@ func (m model) viewProviderConfig() string {
 
 	// Model selection
 	var modelOptions []string
-	for i, model := range providerInfo.models {
+	for i, model := range provider.Models {
 		if i == m.modelCursor {
 			modelOptions = append(modelOptions, s.menuCursor.Render("["+model+"]"))
 		} else {
@@ -199,8 +201,14 @@ func (m model) viewProviderConfig() string {
 	modelLabel := s.label.Render("Model:")
 	modelValue := strings.Join(modelOptions, " ")
 
+	var errMsg string
+	if m.saveErr != nil {
+		errMsg = "\n" + s.error.Render("Error saving config: "+m.saveErr.Error()) + "\n"
+	}
+
 	return title + "\n\n" +
 		apiKeyLabel + "\n" + apiKeyValue + "\n\n" +
 		modelLabel + "\n" + modelValue + "\n\n" +
+		errMsg +
 		s.instruction.Render("tab/↑↓: switch fields • ←→: change model • enter: save • esc: back")
 }

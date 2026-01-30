@@ -28,9 +28,10 @@ func (m model) updateGitConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 		if err := m.saveConfig(); err != nil {
-			// Error will be displayed in a future enhancement
+			m.saveErr = err
 			return m, nil
 		}
+		m.saveErr = nil
 	case "esc":
 		m.screen = screenMainMenu
 		m.menuCursor = 0
@@ -74,9 +75,15 @@ func (m model) viewGitConfig() string {
 	}
 	autoPushItem := fmt.Sprintf("%s%s %s", cursor1, s.menuItem.Render("Auto-push commits"), autoPushStatus)
 
+	var errMsg string
+	if m.saveErr != nil {
+		errMsg = "\n" + s.error.Render("Error saving config: "+m.saveErr.Error()) + "\n"
+	}
+
 	return title + "\n" + subtitle + "\n\n" +
 		autoAddItem + "\n" +
 		autoPushItem + "\n\n" +
+		errMsg +
 		s.instruction.Render("↑↓: navigate • enter: toggle • esc: back • q: quit") + "\n\n" +
 		s.label.Render("Auto-add: automatically stage all changes if none are staged\n") +
 		s.label.Render("Auto-push: automatically push commits after committing")

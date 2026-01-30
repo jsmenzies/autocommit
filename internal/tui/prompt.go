@@ -11,8 +11,10 @@ func (m model) updatePromptEditor(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.ensureConfig()
 		m.config.SystemPrompt = m.promptTextarea.Value()
 		if err := m.saveConfig(); err != nil {
+			m.saveErr = err
 			return m, nil
 		}
+		m.saveErr = nil
 		m.screen = screenMainMenu
 	case "esc":
 		m.screen = screenMainMenu
@@ -30,7 +32,12 @@ func (m model) viewPromptEditor() string {
 
 	textareaView := m.promptTextarea.View()
 
+	var errMsg string
+	if m.saveErr != nil {
+		errMsg = "\n" + s.error.Render("Error saving config: "+m.saveErr.Error()) + "\n"
+	}
+
 	help := s.instruction.Render("ctrl+s: save • esc: back without saving • q: quit")
 
-	return title + "\n" + subtitle + "\n\n" + textareaView + "\n\n" + help
+	return title + "\n" + subtitle + "\n\n" + textareaView + "\n\n" + errMsg + help
 }
