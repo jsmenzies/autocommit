@@ -98,7 +98,14 @@ func (m model) viewProviderList() string {
 		items += fmt.Sprintf("%s%s %s\n", cursor, s.menuItem.Render(provider.displayName), status)
 	}
 
-	return title + "\n" + subtitle + "\n\n" + items + "\n" + s.instruction.Render("esc: back • enter: select • q: quit")
+	// Show provider-specific notes for selected provider
+	selectedProvider := availableProviders[m.providerCursor]
+	var note string
+	if selectedProvider.name == "groq" {
+		note = "\n" + s.success.Render("✓ Free Groq API: https://console.groq.com (no credit card required)") + "\n"
+	}
+
+	return title + "\n" + subtitle + "\n\n" + items + note + "\n" + s.instruction.Render("esc: back • enter: select • q: quit")
 }
 
 func (m model) updateProviderConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {

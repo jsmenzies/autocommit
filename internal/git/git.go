@@ -19,6 +19,12 @@ func HasStagedChanges() bool {
 	return err != nil
 }
 
+func HasUnstagedChanges() bool {
+	cmd := exec.Command("git", "diff", "--quiet")
+	err := cmd.Run()
+	return err != nil
+}
+
 func GetCurrentBranch() (string, error) {
 	cmd := exec.Command("git", "branch", "--show-current")
 	output, err := cmd.Output()
@@ -107,9 +113,10 @@ func DoCommit(message string) error {
 	return nil
 }
 
-// AddAll stages all changes in the repository
+// AddAll stages all changes in the repository (modified, deleted, and untracked files)
 func AddAll() error {
-	cmd := exec.Command("git", "add", ".")
+	// Use -A to add all changes including deletions, modifications, and untracked files
+	cmd := exec.Command("git", "add", "-A")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to add files: %w\nOutput: %s", err, string(output))

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"autocommit/internal/config"
+	"autocommit/internal/debug"
 	"autocommit/internal/git"
 	"autocommit/internal/llm"
 	"autocommit/internal/prompt"
@@ -18,6 +19,7 @@ import (
 var (
 	cfgFile      string
 	generateFlag bool
+	debugFlag    bool
 	rootCmd      = &cobra.Command{
 		Use:   "autocommit",
 		Short: "AI-powered conventional commit message generator",
@@ -38,9 +40,21 @@ func Execute(version, commit, buildTime string) error {
 	rootCmd.Version = version
 	return rootCmd.Execute()
 }
+
+// IsDebugEnabled returns true if debug mode is enabled
+func IsDebugEnabled() bool {
+	return debugFlag
+}
 func init() {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $XDG_CONFIG_HOME/autocommit/config.yaml)")
 	rootCmd.PersistentFlags().BoolVarP(&generateFlag, "generate", "g", false, "Run generate directly (bypass TUI)")
+	rootCmd.PersistentFlags().BoolVarP(&debugFlag, "debug", "d", false, "Enable debug mode (verbose output)")
+
+	// Set up debug flag callback
+	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
+		debug.Enabled = debugFlag
+	}
+
 	rootCmd.AddCommand(configCmd)
 	rootCmd.AddCommand(generateCmd)
 	rootCmd.AddCommand(commitCmd)
@@ -106,14 +120,28 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
-	if !git.HasStagedChanges() {
+	// Check for any changes (staged or unstaged)
+	hasStaged := git.HasStagedChanges()
+	hasUnstaged := git.HasUnstagedChanges()
+
+	if !hasStaged {
 		if cfg.AutoAdd {
 			fmt.Println("Auto-adding all changes...")
 			if err := git.AddAll(); err != nil {
 				return fmt.Errorf("failed to auto-add changes: %w", err)
 			}
+			// Verify that something was actually staged
+			if !git.HasStagedChanges() {
+				return fmt.Errorf("auto-add completed but no changes were staged. Check 'git status' to see if you have modified or untracked files")
+			}
 		} else {
 			return fmt.Errorf("no staged changes found. Run 'git add' first or enable auto_add in config")
+		}
+	} else if hasUnstaged && cfg.AutoAdd {
+		// If we have staged changes but also unstaged changes, auto-add the rest
+		fmt.Println("Auto-adding remaining changes...")
+		if err := git.AddAll(); err != nil {
+			return fmt.Errorf("failed to auto-add changes: %w", err)
 		}
 	}
 	providerCfg, err := cfg.GetDefaultProvider()
@@ -187,14 +215,28 @@ func runCommit(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
-	if !git.HasStagedChanges() {
+	// Check for any changes (staged or unstaged)
+	hasStaged := git.HasStagedChanges()
+	hasUnstaged := git.HasUnstagedChanges()
+
+	if !hasStaged {
 		if cfg.AutoAdd {
 			fmt.Println("Auto-adding all changes...")
 			if err := git.AddAll(); err != nil {
 				return fmt.Errorf("failed to auto-add changes: %w", err)
 			}
+			// Verify that something was actually staged
+			if !git.HasStagedChanges() {
+				return fmt.Errorf("auto-add completed but no changes were staged. Check 'git status' to see if you have modified or untracked files")
+			}
 		} else {
 			return fmt.Errorf("no staged changes found. Run 'git add' first or enable auto_add in config")
+		}
+	} else if hasUnstaged && cfg.AutoAdd {
+		// If we have staged changes but also unstaged changes, auto-add the rest
+		fmt.Println("Auto-adding remaining changes...")
+		if err := git.AddAll(); err != nil {
+			return fmt.Errorf("failed to auto-add changes: %w", err)
 		}
 	}
 	providerCfg, err := cfg.GetDefaultProvider()

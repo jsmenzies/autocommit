@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"autocommit/internal/debug"
 )
 
 // Provider defines the interface for LLM providers
@@ -121,11 +123,10 @@ func (bp *BaseProvider) SendChatRequest(ctx context.Context, req ChatRequest) (*
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	// Debug: Print request details
-	fmt.Printf("DEBUG: Request URL: %s\n", bp.BaseURL)
-	fmt.Printf("DEBUG: Request Model: %s\n", req.Model)
-	fmt.Printf("DEBUG: Request Body Size: %d bytes\n", len(reqBody))
-	fmt.Printf("DEBUG: Sending request...\n")
+	debug.Printf("[DEBUG] Request URL: %s\n", bp.BaseURL)
+	debug.Printf("[DEBUG] Request Model: %s\n", req.Model)
+	debug.Printf("[DEBUG] Request Body Size: %d bytes\n", len(reqBody))
+	debug.Println("[DEBUG] Sending request...")
 
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", bp.BaseURL, bytes.NewBuffer(reqBody))
 	if err != nil {
@@ -134,11 +135,12 @@ func (bp *BaseProvider) SendChatRequest(ctx context.Context, req ChatRequest) (*
 
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+bp.APIKey)
+	httpReq.Header.Set("User-Agent", "autocommit/1.0")
 
 	start := time.Now()
 	resp, err := bp.client.Do(httpReq)
 	elapsed := time.Since(start)
-	fmt.Printf("DEBUG: Request took %v\n", elapsed)
+	debug.Printf("[DEBUG] Request took %v\n", elapsed)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
@@ -153,6 +155,9 @@ func (bp *BaseProvider) SendChatRequest(ctx context.Context, req ChatRequest) (*
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
 	}
+
+	debug.Printf("[DEBUG] Response Status: %d\n", resp.StatusCode)
+	debug.Printf("[DEBUG] Response Body:\n%s\n", string(body))
 
 	var chatResp ChatResponse
 	if err := json.Unmarshal(body, &chatResp); err != nil {
@@ -170,7 +175,7 @@ func ExtractMessage(chatResp *ChatResponse) (string, error) {
 
 	content := strings.TrimSpace(chatResp.Choices[0].Message.Content)
 	if content == "" {
-		return "", fmt.Errorf("LLM returned empty message content")
+		return "", fmt.Errorf("LLM returned empty message content - model may need more tokens or the diff is too complex")
 	}
 
 	return content, nil
