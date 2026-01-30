@@ -120,3 +120,66 @@ jobs:
             artifacts/autocommit-linux-x86_64.sha256
           draft: false
           prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') }}
+
+  update-homebrew:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: autocommit-macos-arm64
+          path: artifacts
+      
+      - name: Extract version and SHA256
+        id: info
+        run: |
+          VERSION=${{ github.ref_name }}
+          VERSION=${VERSION#v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          
+          SHA256=$(cat artifacts/autocommit-macos-arm64.sha256 | cut -d' ' -f1)
+          echo "sha256=$SHA256" >> $GITHUB_OUTPUT
+          
+          echo "Version: $VERSION"
+          echo "SHA256: $SHA256"
+      
+      - name: Checkout homebrew tap
+        uses: actions/checkout@v4
+        with:
+          repository: jsmenzies/homebrew-autocommit
+          token: ${{ secrets.HOMEBREW_AUTOCOMMIT_TOKEN }}
+          path: homebrew-tap
+      
+      - name: Update Homebrew formula
+        run: |
+          cd homebrew-tap
+          
+          # Update the formula file
+          FORMULA="autocommit.rb"
+          if [ -f "$FORMULA" ]; then
+            # Update version
+            sed -i "s/version \"[^\"]*\"/version \"${{ steps.info.outputs.version }}\"/" "$FORMULA"
+            
+            # Update URL
+            sed -i "s|url \"[^\"]*\"|url \"https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/autocommit-macos-arm64\"|" "$FORMULA"
+            
+            # Update SHA256
+            sed -i "s/sha256 \"[^\"]*\"/sha256 \"${{ steps.info.outputs.sha256 }}\"/" "$FORMULA"
+            
+            # Show changes
+            cat "$FORMULA"
+          else
+            echo "Formula file not found: $FORMULA"
+            ls -la
+            exit 1
+          fi
+      
+      - name: Commit and push changes
+        run: |
+          cd homebrew-tap
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add autocommit.rb
+          git commit -m "Update autocommit to ${{ github.ref_name }}" || echo "No changes to commit"
+          git push
