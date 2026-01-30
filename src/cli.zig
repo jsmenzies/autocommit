@@ -1,5 +1,6 @@
 const std = @import("std");
 const config = @import("config.zig");
+const build_options = @import("build_options");
 
 pub const Command = enum {
     generate,
@@ -31,7 +32,6 @@ pub fn parse(allocator: std.mem.Allocator) !Args {
     var result = Args{};
 
     if (args.len <= 1) {
-    
         return result;
     }
 
@@ -122,7 +122,7 @@ pub fn printHelp(writer: anytype) !void {
 }
 
 pub fn printVersion(writer: anytype) !void {
-    try writer.print("autocommit v0.1.0 (zig)\n", .{});
+    try writer.print("autocommit {s} (zig)\n", .{build_options.version});
 }
 
 // Helper to check if API key is actually set (not a placeholder)
@@ -366,7 +366,11 @@ test "version output" {
     try printVersion(stream.writer());
     const version_output = stream.getWritten();
 
-    try std.testing.expect(std.mem.eql(u8, version_output, "autocommit v0.1.0 (zig)\n"));
+    // Verify format: "autocommit vX.Y.Z (zig)\n"
+    try std.testing.expect(std.mem.startsWith(u8, version_output, "autocommit v"));
+    try std.testing.expect(std.mem.endsWith(u8, version_output, " (zig)\n"));
+    // Should contain at least one dot in the version (e.g., v0.0.0 or v1.2.3)
+    try std.testing.expect(std.mem.indexOf(u8, version_output, ".") != null);
 }
 
 // Internal helper function for testing

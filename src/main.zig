@@ -49,15 +49,28 @@ pub fn main() !void {
         std.process.exit(1);
     }
 
-    // Print git status with colors and exit
-    const has_changes = git.printGitStatus(stderr) catch {
+    // Get git status
+    var status = git.getStatus(allocator) catch {
         try stderr.print("Failed to get git status\n", .{});
+        std.process.exit(1);
+    };
+    defer status.deinit();
+
+    // Print git status with colors and exit
+    const has_changes = git.printGitStatus(stderr, &status) catch {
+        try stderr.print("Failed to print git status\n", .{});
         std.process.exit(1);
     };
 
     if (!has_changes) {
         std.process.exit(0);
     }
+}
+
+test {
+    _ = @import("cli.zig");
+    _ = @import("config.zig");
+    _ = @import("git.zig");
 }
 
 test {
