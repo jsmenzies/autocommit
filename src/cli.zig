@@ -2,22 +2,23 @@ const std = @import("std");
 const config = @import("config.zig");
 
 pub const Command = enum {
-    generate, // Default: generate commit message
-    config, // Config subcommand
-    help, // Show help
-    version, // Show version
-    unknown, // Unknown command
+    generate,
+    config,
+    help,
+    version,
+    unknown,
 };
 
 pub const ConfigSubcommand = enum {
-    edit, // Open in editor (default)
-    print, // Show config info
-    unknown, // Unknown subcommand
+    edit,
+    print,
+    unknown,
 };
 
 pub const Args = struct {
-    command: Command = .generate, // Default to generate
-    config_sub: ConfigSubcommand = .edit, // Default config action
+    command: Command = .generate,
+    config_sub: ConfigSubcommand = .edit,
+    config_file: ?[]const u8 = null,
     provider: ?[]const u8 = null,
     model: ?[]const u8 = null,
     debug: bool = false,
@@ -30,7 +31,7 @@ pub fn parse(allocator: std.mem.Allocator) !Args {
     var result = Args{};
 
     if (args.len <= 1) {
-        // No arguments - default to generate
+    
         return result;
     }
 
@@ -62,6 +63,12 @@ pub fn parse(allocator: std.mem.Allocator) !Args {
                     i += 1;
                 }
             }
+        } else if (std.mem.eql(u8, arg, "-c") or std.mem.eql(u8, arg, "--config")) {
+            i += 1;
+            if (i >= args.len) {
+                return error.MissingConfigValue;
+            }
+            result.config_file = try allocator.dupe(u8, args[i]);
         } else if (std.mem.eql(u8, arg, "-p") or std.mem.eql(u8, arg, "--provider")) {
             i += 1;
             if (i >= args.len) {
@@ -98,6 +105,7 @@ pub fn printHelp(writer: anytype) !void {
         \\  version, --version    Show version information
         \\
         \\Options:
+        \\  -c, --config <path>   Use custom configuration file
         \\  -p, --provider <name> Override provider (zai, openai, groq)
         \\  -m, --model <name>    Override model
         \\  -d, --debug           Enable debug output
@@ -236,6 +244,9 @@ pub fn printConfigInfo(allocator: std.mem.Allocator, writer: anytype) !void {
 
 // Free any allocated memory in Args
 pub fn free(args: *const Args, allocator: std.mem.Allocator) void {
+    if (args.config_file) |config_file| {
+        allocator.free(config_file);
+    }
     if (args.provider) |provider| {
         allocator.free(provider);
     }

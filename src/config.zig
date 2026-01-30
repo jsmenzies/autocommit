@@ -115,16 +115,22 @@ pub fn createDefaultConfig(allocator: std.mem.Allocator, path: []const u8) !void
     try file.writeAll(DEFAULT_CONFIG);
 }
 
-/// Load configuration from file
-pub fn load(allocator: std.mem.Allocator) !Config {
-    const config_path = try getConfigPath(allocator);
-    defer allocator.free(config_path);
+/// Load configuration from a specific path (relative or absolute)
+pub fn loadFromPath(allocator: std.mem.Allocator, config_path: []const u8) !Config {
+    // Determine if path is absolute
+    const is_absolute = std.fs.path.isAbsolute(config_path);
 
     // Check if file exists
     const file_exists = blk: {
-        std.fs.accessAbsolute(config_path, .{}) catch {
-            break :blk false;
-        };
+        if (is_absolute) {
+            std.fs.accessAbsolute(config_path, .{}) catch {
+                break :blk false;
+            };
+        } else {
+            std.fs.cwd().access(config_path, .{}) catch {
+                break :blk false;
+            };
+        }
         break :blk true;
     };
 
@@ -133,7 +139,10 @@ pub fn load(allocator: std.mem.Allocator) !Config {
     }
 
     // Read file contents
-    const file = try std.fs.openFileAbsolute(config_path, .{});
+    const file = if (is_absolute)
+        try std.fs.openFileAbsolute(config_path, .{})
+    else
+        try std.fs.cwd().openFile(config_path, .{});
     defer file.close();
 
     const content = try file.readToEndAlloc(allocator, 1024 * 1024); // Max 1MB
@@ -141,6 +150,13 @@ pub fn load(allocator: std.mem.Allocator) !Config {
 
     // Parse JSON
     return try parseConfig(allocator, content);
+}
+
+/// Load configuration from default location
+pub fn load(allocator: std.mem.Allocator) !Config {
+    const config_path = try getConfigPath(allocator);
+    defer allocator.free(config_path);
+    return try loadFromPath(allocator, config_path);
 }
 
 /// Parse JSON config content
