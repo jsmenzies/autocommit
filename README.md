@@ -6,7 +6,7 @@ A CLI tool that analyzes Git history and generates conventional commit messages 
 
 - 🤖 AI-powered commit message generation
 - 📝 Follows conventional commits specification
-- ⚙️ Configurable LLM providers (starting with z.ai)
+- ⚙️ Configurable LLM providers (z.ai, OpenAI, and Groq)
 - 🖥️ Cross-platform: Windows, macOS, Linux
 - 🔧 Simple configuration via YAML
 
@@ -66,10 +66,14 @@ The configuration file is stored at:
 default_provider: zai
 providers:
   zai:
-    api_key: your-api-key-here
+    apikey: your-zai-api-key-here
     model: glm-4.7
-    temperature: 0.7
-    max_tokens: 500
+  openai:
+    apikey: your-openai-api-key-here
+    model: gpt-4o-mini
+  groq:
+    apikey: your-groq-api-key-here
+    model: llama-3.1-8b-instant
 ```
 
 ## Usage

@@ -22,7 +22,7 @@ var (
 		Use:   "autocommit",
 		Short: "AI-powered conventional commit message generator",
 		Long: `AutoCommit analyzes your staged Git changes and generates conventional commit messages
-using LLM providers. Currently supports z.ai (GLM models).`,
+using LLM providers. Supports z.ai (GLM models), OpenAI (GPT models), and Groq (ultra-fast inference).`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// If -g flag is set, run generate directly
 			if generateFlag {
@@ -128,12 +128,9 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		recentCommits = []string{}
 	}
-	var provider llm.Provider
-	switch cfg.DefaultProvider {
-	case "zai":
-		provider = llm.NewZaiProvider(providerCfg.APIKey, providerCfg.Model, cfg.GetSystemPrompt())
-	default:
-		return fmt.Errorf("unsupported provider: %s", cfg.DefaultProvider)
+	provider, err := createProvider(cfg.DefaultProvider, providerCfg, cfg.GetSystemPrompt())
+	if err != nil {
+		return err
 	}
 	ctx := context.Background()
 	message, err := provider.GenerateCommitMessage(ctx, diff, recentCommits)
@@ -212,12 +209,9 @@ func runCommit(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		recentCommits = []string{}
 	}
-	var provider llm.Provider
-	switch cfg.DefaultProvider {
-	case "zai":
-		provider = llm.NewZaiProvider(providerCfg.APIKey, providerCfg.Model, cfg.GetSystemPrompt())
-	default:
-		return fmt.Errorf("unsupported provider: %s", cfg.DefaultProvider)
+	provider, err := createProvider(cfg.DefaultProvider, providerCfg, cfg.GetSystemPrompt())
+	if err != nil {
+		return err
 	}
 	ctx := context.Background()
 	message, err := provider.GenerateCommitMessage(ctx, diff, recentCommits)
@@ -236,6 +230,20 @@ var commitCmd = &cobra.Command{
 	Use:   "commit",
 	Short: "Generate message and commit changes",
 	RunE:  runCommit,
+}
+
+// createProvider creates an LLM provider based on the configuration
+func createProvider(providerName string, providerCfg config.ProviderConfig, systemPrompt string) (llm.Provider, error) {
+	switch providerName {
+	case "zai":
+		return llm.NewZaiProvider(providerCfg.APIKey, providerCfg.Model, systemPrompt), nil
+	case "openai":
+		return llm.NewOpenAIProvider(providerCfg.APIKey, providerCfg.Model, systemPrompt), nil
+	case "groq":
+		return llm.NewGroqProvider(providerCfg.APIKey, providerCfg.Model, systemPrompt), nil
+	default:
+		return nil, fmt.Errorf("unsupported provider: %s", providerName)
+	}
 }
 
 func promptUserAction() (string, error) {
