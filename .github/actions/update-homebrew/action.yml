@@ -55,6 +55,11 @@ runs:
           
           def install
             bin.install "autocommit-macos-arm64" => "autocommit"
+            
+            # Remove quarantine attribute for unsigned binaries on macOS
+            if OS.mac?
+              system "/usr/bin/xattr", "-dr", "com.apple.quarantine", "#{bin}/autocommit"
+            end
           end
           
           test do

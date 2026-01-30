@@ -94,5 +94,5 @@ jobs:
           version: ${{ steps.info.outputs.version }}
           tag: ${{ github.ref_name }}
           sha256: ${{ steps.info.outputs.sha256 }}
-          tap-repo: jsmenzies/homebrew-autocommit
+          tap-repo: jsmenzies/homebrew-tap
           github-token: ${{ secrets.HOMEBREW_AUTOCOMMIT_TOKEN }}
