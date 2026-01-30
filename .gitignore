@@ -38,6 +38,8 @@ autocommit
 *.yml
 !*.example.yaml
 !*.example.yml
+!.github/workflows/*.yml
+!.github/workflows/*.yaml
 
 # Local environment files
 .env
