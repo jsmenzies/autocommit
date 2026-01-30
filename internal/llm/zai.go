@@ -153,8 +153,13 @@ Examples:
 	}
 
 	if len(chatResp.Choices) == 0 {
-		return "", fmt.Errorf("no response from LLM")
+		return "", fmt.Errorf("no response from LLM (empty choices)")
 	}
 
-	return strings.TrimSpace(chatResp.Choices[0].Message.Content), nil
+	content := strings.TrimSpace(chatResp.Choices[0].Message.Content)
+	if content == "" {
+		return "", fmt.Errorf("LLM returned empty message content")
+	}
+
+	return content, nil
 }

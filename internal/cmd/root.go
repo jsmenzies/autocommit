@@ -140,6 +140,12 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to generate message: %w", err)
 	}
+
+	// Validate that we got a non-empty message
+	if strings.TrimSpace(message) == "" {
+		return fmt.Errorf("generated message is empty - please try again or check your API key and model settings")
+	}
+
 	fmt.Printf("\nSuggested commit message:\n%s\n\n", message)
 	action, err := promptUserAction()
 	if err != nil {
