@@ -47,9 +47,10 @@ Type "echo 'alias ac=autocommit --add --accept --push'" Sleep 500ms Enter
 
 # Step 4: Quick demo with alias
 Sleep 1s
-Type "touch test.file" Sleep 100ms Enter
+Type "echo 'Remove unneeded go version from mise.toml'" Sleep 500ms Enter
+Type "sed -i '' '/^go = /d' mise.toml" Enter
 Sleep 1s
 
 Type "ac" Enter
 
-Sleep 8s
+Sleep 7s

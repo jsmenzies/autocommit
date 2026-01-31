@@ -133,25 +133,12 @@ If the `XDG_CONFIG_HOME` environment variable is set, the config will be stored 
 
 ### Generated Configuration
 
-When you run `autocommit config`, the tool automatically creates a default configuration file with the following structure:
+When you run `autocommit config`, the tool automatically creates a default configuration file with the following structure and inputs the default prompt
 
 ```toml
 default_provider = "zai"
 
-system_prompt = """
-You are a commit message generator. Analyze the git diff and create a conventional commit message.
-Follow these rules:
-- Use format for the first line: <type>(<scope>): <subject>
-- Types: feat, fix, docs, style, refactor, test, chore
-- Scope is optional - omit if not needed
-- First line (subject) should be a concise summary
-- Use present tense, imperative mood
-- Add a blank line after the subject if you need a body
-- Body should explain the "what" and "why" for complex or multiple changes
-- Use bullet points in the body for multiple distinct changes
-- Do not include any explanation outside the commit message
-- Do not use markdown code blocks
-"""
+system_prompt = ""
 
 [[providers]]
 name = "zai"
@@ -204,6 +191,8 @@ The prompt instructs the LLM to:
 - Add a body section for complex changes or when there are multiple distinct changes
 - Use bullet points in the body to describe what and why
 
+You can customize the system prompt in your config file to change how commit messages are generated.
+
 ### Configuration Options
 
 - `default_provider` - Which LLM provider to use (zai, groq)
@@ -211,10 +200,6 @@ The prompt instructs the LLM to:
 - `providers.{name}.api_key` - API key for the provider
 - `providers.{name}.model` - Model to use
 - `providers.{name}.endpoint` - API endpoint URL
-
-### Custom System Prompt
-
-You can customize the system prompt in your config file to change how commit messages are generated. The default prompt is optimized for conventional commits with support for multiline messages when needed.
 
 ## Build Commands
 
