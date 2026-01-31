@@ -62,7 +62,6 @@ pub fn getById(id: ProviderId) ?*const ProviderMetadata {
     return null;
 }
 
-/// Find provider metadata by name string (case-sensitive)
 pub fn getByName(name: []const u8) ?*const ProviderMetadata {
     const id = ProviderId.fromString(name) orelse return null;
     return getById(id);

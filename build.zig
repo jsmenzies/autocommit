@@ -11,6 +11,12 @@ pub fn build(b: *std.Build) void {
     const options = b.addOptions();
     options.addOption([]const u8, "version", version);
 
+    // Add tomlz dependency
+    const tomlz = b.dependency("tomlz", .{
+        .target = target,
+        .optimize = optimize,
+    });
+
     const exe = b.addExecutable(.{
         .name = "autocommit",
         .root_source_file = b.path("src/main.zig"),
@@ -20,6 +26,7 @@ pub fn build(b: *std.Build) void {
     });
 
     exe.root_module.addOptions("build_options", options);
+    exe.root_module.addImport("tomlz", tomlz.module("tomlz"));
 
     b.installArtifact(exe);
 
@@ -40,6 +47,7 @@ pub fn build(b: *std.Build) void {
     });
 
     exe_unit_tests.root_module.addOptions("build_options", options);
+    exe_unit_tests.root_module.addImport("tomlz", tomlz.module("tomlz"));
 
     const run_exe_unit_tests = b.addRunArtifact(exe_unit_tests);
 

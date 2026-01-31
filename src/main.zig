@@ -195,11 +195,7 @@ pub fn main() !void {
     const truncated_diff = try git.truncateDiff(allocator, diff, max_diff_size);
     defer allocator.free(truncated_diff);
 
-    // Generate commit message
-    if (args.debug) {
-        try debug(stderr, "Generating commit message...\n", .{});
-    }
-
+    // Generate commit message (debug logging handled internally by llm module when debug is enabled)
     const commit_message = provider.generateCommitMessage(truncated_diff, cfg.system_prompt) catch |err| {
         const error_message = switch (err) {
             llm.LlmError.InvalidApiKey => "Invalid API key. Check your config file.",
@@ -211,16 +207,9 @@ pub fn main() !void {
             llm.LlmError.ApiError => "API error occurred.",
             llm.LlmError.OutOfMemory => "Out of memory.",
         };
-        if (args.debug) {
-            try debug(stderr, "LLM error: {s}\n", .{@errorName(err)});
-        }
         try stderr.print("Error: {s}\n", .{error_message});
         std.process.exit(1);
     };
-
-    if (args.debug) {
-        try debug(stderr, "LLM raw response: {s}\n", .{commit_message});
-    }
 
     try stdout.print("\n{s}Generated commit message:{s}\n{s}{s}{s}\n", .{ "\x1b[1m", "\x1b[0m", "\x1b[36m", commit_message, "\x1b[0m" });
 

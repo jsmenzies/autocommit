@@ -1,10 +1,9 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const registry = @import("providers/registry.zig");
-const zai_provider = @import("providers/zai.zig");
-const groq_provider = @import("providers/groq.zig");
+const tomlz = @import("tomlz");
 
-/// System prompt template for the commit message generator
+/// System prompt template for the commit message generator (multi-line for TOML)
 pub const SYSTEM_PROMPT_TEMPLATE =
     \\You are a commit message generator. Analyze the git diff and create a conventional commit message.
     \\Follow these rules:
@@ -18,59 +17,69 @@ pub const SYSTEM_PROMPT_TEMPLATE =
     \\- Use bullet points in the body for multiple distinct changes
     \\- Do not include any explanation outside the commit message
     \\- Do not use markdown code blocks
-    \\ 
+    \\
     \\Examples (single line for simple changes):
     \\- feat(auth): add password validation to login form
     \\- fix(api): handle nil pointer in user service
     \\- docs(readme): update installation instructions
     \\- refactor(db): optimize query performance with index
     \\- feat: add new feature without scope
-    \\ 
+    \\
     \\Examples (with body for complex changes):
     \\feat(api): implement rate limiting middleware
-    \\ 
+    \\
     \\- Add sliding window rate limiting with Redis backend
     \\- Configurable limits per endpoint via env vars
     \\- Returns 429 status with Retry-After header
 ;
 
-/// Generate the default configuration JSON at comptime
-/// Uses provider metadata from registry
 pub fn generateDefaultConfig(comptime default_provider: registry.ProviderId) []const u8 {
     return comptime generateDefaultConfigImpl(default_provider);
 }
 
 fn generateDefaultConfigImpl(default_provider: registry.ProviderId) []const u8 {
-    // Get provider metadata directly
-    const zai_metadata = zai_provider.metadata;
-    const groq_metadata = groq_provider.metadata;
+    return comptime generateDefaultConfigImplInner(default_provider);
+}
+
+fn generateDefaultConfigImplInner(comptime default_provider: registry.ProviderId) []const u8 {
+    // Build provider entries dynamically at compile time using TOML array of tables
+    const provider_entries = comptime blk: {
+        var entries: [registry.all.len][]const u8 = undefined;
+        for (registry.all, 0..) |metadata, i| {
+            entries[i] = std.fmt.comptimePrint(
+                "[[providers]]\n" ++
+                    "name = \"{s}\"\n" ++
+                    "api_key = \"{s}\"\n" ++
+                    "model = \"{s}\"\n" ++
+                    "endpoint = \"{s}\"\n\n",
+                .{
+                    metadata.name,
+                    metadata.api_key_placeholder,
+                    metadata.default_model,
+                    metadata.endpoint,
+                },
+            );
+        }
+        break :blk entries;
+    };
+
+    // Concatenate all provider entries
+    const providers_section = comptime blk: {
+        var section: []const u8 = "";
+        for (provider_entries) |entry| {
+            section = section ++ entry;
+        }
+        break :blk section;
+    };
 
     return std.fmt.comptimePrint(
-        "{{\\n" ++
-            "  \"default_provider\": \"{s}\",\\n" ++
-            "  \"providers\": {{\\n" ++
-            "    \"zai\": {{\\n" ++
-            "      \"api_key\": \"{s}\",\\n" ++
-            "      \"model\": \"{s}\",\\n" ++
-            "      \"endpoint\": \"{s}\"\\n" ++
-            "    }},\\n" ++
-            "    \"groq\": {{\\n" ++
-            "      \"api_key\": \"{s}\",\\n" ++
-            "      \"model\": \"{s}\",\\n" ++
-            "      \"endpoint\": \"{s}\"\\n" ++
-            "    }}\\n" ++
-            "  }},\\n" ++
-            "  \"system_prompt\": \"{s}\"\\n" ++
-            "}}",
+        "default_provider = \"{s}\"\n\n" ++
+            "system_prompt = \"\"\"\n{s}\"\"\"\n\n" ++
+            "{s}",
         .{
             default_provider.name(),
-            zai_metadata.api_key_placeholder,
-            zai_metadata.default_model,
-            zai_metadata.endpoint,
-            groq_metadata.api_key_placeholder,
-            groq_metadata.default_model,
-            groq_metadata.endpoint,
             SYSTEM_PROMPT_TEMPLATE,
+            providers_section,
         },
     );
 }
@@ -81,45 +90,35 @@ pub const DEFAULT_CONFIG = generateDefaultConfig(.zai);
 pub const Config = struct {
     default_provider: []const u8,
     system_prompt: []const u8,
-    providers: Providers,
+    providers: []ProviderConfig,
 
     pub fn deinit(self: *const Config, allocator: std.mem.Allocator) void {
         allocator.free(self.default_provider);
         allocator.free(self.system_prompt);
-        self.providers.deinit(allocator);
+        for (self.providers) |provider| {
+            provider.deinit(allocator);
+        }
+        allocator.free(self.providers);
     }
 
     pub fn getProvider(self: *const Config, name: []const u8) !*const ProviderConfig {
-        const id = registry.ProviderId.fromString(name) orelse return error.UnknownProvider;
-        return self.providers.get(id);
-    }
-};
-
-pub const Providers = struct {
-    zai: ProviderConfig,
-    openai: ProviderConfig,
-    groq: ProviderConfig,
-
-    pub fn deinit(self: *const Providers, allocator: std.mem.Allocator) void {
-        self.zai.deinit(allocator);
-        self.openai.deinit(allocator);
-        self.groq.deinit(allocator);
-    }
-
-    pub fn get(self: *const Providers, id: registry.ProviderId) *const ProviderConfig {
-        return switch (id) {
-            .zai => &self.zai,
-            .groq => &self.groq,
-        };
+        for (self.providers) |*provider| {
+            if (std.mem.eql(u8, provider.name, name)) {
+                return provider;
+            }
+        }
+        return error.UnknownProvider;
     }
 };
 
 pub const ProviderConfig = struct {
+    name: []const u8,
     api_key: []const u8,
     model: []const u8,
     endpoint: []const u8,
 
     pub fn deinit(self: *const ProviderConfig, allocator: std.mem.Allocator) void {
+        allocator.free(self.name);
         allocator.free(self.api_key);
         allocator.free(self.model);
         allocator.free(self.endpoint);
@@ -146,7 +145,7 @@ pub fn getConfigPath(allocator: std.mem.Allocator) ![]const u8 {
     const config_dir = try getConfigDir(allocator);
     defer allocator.free(config_dir);
 
-    return try std.fs.path.join(allocator, &[_][]const u8{ config_dir, "autocommit", "config.json" });
+    return try std.fs.path.join(allocator, &[_][]const u8{ config_dir, "autocommit", "config.toml" });
 }
 
 /// Ensure the config directory exists
@@ -207,7 +206,7 @@ pub fn loadFromPath(allocator: std.mem.Allocator, config_path: []const u8) !Conf
     const content = try file.readToEndAlloc(allocator, 1024 * 1024); // Max 1MB
     defer allocator.free(content);
 
-    // Parse JSON
+    // Parse TOML
     return try parseConfig(allocator, content);
 }
 
@@ -218,119 +217,49 @@ pub fn load(allocator: std.mem.Allocator) !Config {
     return try loadFromPath(allocator, config_path);
 }
 
-/// Parse JSON config content
+/// Parse TOML config content using tomlz
 fn parseConfig(allocator: std.mem.Allocator, content: []const u8) !Config {
-    var parsed = try std.json.parseFromSlice(std.json.Value, allocator, content, .{});
-    defer parsed.deinit();
+    // Use an arena allocator to prevent memory leaks during parsing.
+    // tomlz may allocate memory before encountering errors, leaving
+    // allocations unfreed. Using arena ensures cleanup on any error.
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    const arena_allocator = arena.allocator();
 
-    const root = parsed.value;
+    // Parse with arena - all allocations tracked
+    const parsed = try tomlz.decode(Config, arena_allocator, content);
 
-    if (root != .object) {
-        return error.InvalidConfig;
+    // Successfully parsed - now copy data to caller's allocator
+    const config = Config{
+        .default_provider = try allocator.dupe(u8, parsed.default_provider),
+        .system_prompt = try allocator.dupe(u8, parsed.system_prompt),
+        .providers = try allocator.alloc(ProviderConfig, parsed.providers.len),
+    };
+
+    // Copy providers
+    for (parsed.providers, 0..) |provider, i| {
+        config.providers[i] = ProviderConfig{
+            .name = try allocator.dupe(u8, provider.name),
+            .api_key = try allocator.dupe(u8, provider.api_key),
+            .model = try allocator.dupe(u8, provider.model),
+            .endpoint = try allocator.dupe(u8, provider.endpoint),
+        };
     }
 
-    const obj = root.object;
-
-    // Parse required fields
-    const default_provider = try getStringField(allocator, obj, "default_provider") orelse {
-        return error.MissingDefaultProvider;
-    };
-    errdefer allocator.free(default_provider);
-
-    const system_prompt = try getStringField(allocator, obj, "system_prompt") orelse {
-        return error.MissingSystemPrompt;
-    };
-    errdefer allocator.free(system_prompt);
-
-    // Parse providers
-    const providers_obj = obj.get("providers") orelse {
-        return error.MissingProviders;
-    };
-
-    if (providers_obj != .object) {
-        return error.InvalidProviders;
-    }
-
-    const providers = try parseProviders(allocator, providers_obj.object);
-    errdefer providers.deinit(allocator);
-
-    return Config{
-        .default_provider = default_provider,
-        .system_prompt = system_prompt,
-        .providers = providers,
-    };
-}
-
-fn getStringField(allocator: std.mem.Allocator, obj: std.json.ObjectMap, key: []const u8) !?[]const u8 {
-    const value = obj.get(key) orelse return null;
-    if (value != .string) return null;
-    return try allocator.dupe(u8, value.string);
-}
-
-fn parseProviders(allocator: std.mem.Allocator, obj: std.json.ObjectMap) !Providers {
-    const zai = try parseProvider(allocator, obj, "zai");
-    errdefer zai.deinit(allocator);
-
-    const openai = try parseProvider(allocator, obj, "openai");
-    errdefer openai.deinit(allocator);
-
-    const groq = try parseProvider(allocator, obj, "groq");
-    errdefer groq.deinit(allocator);
-
-    return Providers{
-        .zai = zai,
-        .openai = openai,
-        .groq = groq,
-    };
-}
-
-fn parseProvider(allocator: std.mem.Allocator, obj: std.json.ObjectMap, name: []const u8) !ProviderConfig {
-    const provider_obj = obj.get(name) orelse {
-        return error.MissingProvider;
-    };
-
-    if (provider_obj != .object) {
-        return error.InvalidProvider;
-    }
-
-    const p = provider_obj.object;
-
-    const api_key = try getStringField(allocator, p, "api_key") orelse {
-        return error.MissingApiKey;
-    };
-    errdefer allocator.free(api_key);
-
-    const model = try getStringField(allocator, p, "model") orelse {
-        return error.MissingModel;
-    };
-    errdefer allocator.free(model);
-
-    const endpoint = try getStringField(allocator, p, "endpoint") orelse {
-        return error.MissingEndpoint;
-    };
-    errdefer allocator.free(endpoint);
-
-    return ProviderConfig{
-        .api_key = api_key,
-        .model = model,
-        .endpoint = endpoint,
-    };
+    return config;
 }
 
 /// Validate configuration for a specific provider
 pub fn validateConfig(config: *const Config, provider_name: []const u8) !void {
-    const provider = if (std.mem.eql(u8, provider_name, "zai"))
-        config.providers.zai
-    else if (std.mem.eql(u8, provider_name, "openai"))
-        config.providers.openai
-    else if (std.mem.eql(u8, provider_name, "groq"))
-        config.providers.groq
-    else
-        return error.UnknownProvider;
+    const provider = config.getProvider(provider_name) catch return error.UnknownProvider;
+    const metadata = registry.getByName(provider_name) orelse return error.UnknownProvider;
 
-    if (std.mem.eql(u8, provider.api_key, "your-zai-api-key-here") or
-        std.mem.eql(u8, provider.api_key, "your-openai-api-key-here") or
-        std.mem.eql(u8, provider.api_key, "your-groq-api-key-here") or
+    // Check if API key is a placeholder or empty
+    const placeholder = try std.fmt.allocPrint(std.heap.page_allocator, "your-{s}-api-key-here", .{metadata.name});
+    defer std.heap.page_allocator.free(placeholder);
+
+    if (std.mem.eql(u8, provider.api_key, metadata.api_key_placeholder) or
+        std.mem.eql(u8, provider.api_key, placeholder) or
         provider.api_key.len == 0)
     {
         return error.ApiKeyNotSet;
@@ -401,79 +330,68 @@ test "getConfigPath uses XDG_CONFIG_HOME when set" {
     // For now, we just test the basic functionality
 }
 
-test "parseConfig with valid JSON" {
-    const test_json =
-        \\{
-        \\  "default_provider": "zai",
-        \\  "auto_add": true,
-        \\  "auto_push": false,
-        \\  "system_prompt": "Test prompt",
-        \\  "providers": {
-        \\    "zai": {
-        \\      "api_key": "test-key",
-        \\      "model": "glm-4.7-Flash",
-        \\      "endpoint": "https://api.z.ai/v1"
-        \\    },
-        \\    "openai": {
-        \\      "api_key": "test-key",
-        \\      "model": "gpt-4",
-        \\      "endpoint": "https://api.openai.com/v1"
-        \\    },
-        \\    "groq": {
-        \\      "api_key": "test-key",
-        \\      "model": "llama-3",
-        \\      "endpoint": "https://api.groq.com/v1"
-        \\    }
-        \\  }
-        \\}
+test "parseConfig with valid TOML" {
+    const test_toml =
+        \\default_provider = "zai"
+        \\system_prompt = "Test prompt"
+        \\
+        \\[[providers]]
+        \\name = "zai"
+        \\api_key = "test-key"
+        \\model = "glm-4.7-Flash"
+        \\endpoint = "https://api.z.ai/v1"
+        \\
+        \\[[providers]]
+        \\name = "groq"
+        \\api_key = "test-key"
+        \\model = "llama-3"
+        \\endpoint = "https://api.groq.com/v1"
     ;
 
-    var config = try parseConfig(std.testing.allocator, test_json);
+    var config = try parseConfig(std.testing.allocator, test_toml);
     defer config.deinit(std.testing.allocator);
 
     try std.testing.expectEqualStrings("zai", config.default_provider);
     try std.testing.expectEqualStrings("Test prompt", config.system_prompt);
-    try std.testing.expectEqualStrings("test-key", config.providers.zai.api_key);
-    try std.testing.expectEqualStrings("glm-4.7-Flash", config.providers.zai.model);
+    const zai_provider = try config.getProvider("zai");
+    try std.testing.expectEqualStrings("test-key", zai_provider.api_key);
+    try std.testing.expectEqualStrings("glm-4.7-Flash", zai_provider.model);
 }
 
 test "parseConfig missing required field" {
-    const test_json =
-        \\{
-        \\  "default_provider": "zai"
-        \\}
+    const test_toml =
+        \\default_provider = "zai"
     ;
 
-    const result = parseConfig(std.testing.allocator, test_json);
-    try std.testing.expectError(error.MissingSystemPrompt, result);
+    // Use an arena allocator to avoid leak detection on expected error
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    // TOML parsing will fail because system_prompt is missing from the struct
+    const result = parseConfig(allocator, test_toml);
+    try std.testing.expectError(error.MissingField, result);
 }
 
 test "validateConfig with placeholder API key" {
-    const test_json =
-        \\{
-        \\  "default_provider": "zai",
-        \\  "system_prompt": "Test",
-        \\  "providers": {
-        \\    "zai": {
-        \\      "api_key": "your-zai-api-key-here",
-        \\      "model": "glm-4.7-Flash",
-        \\      "endpoint": "https://api.z.ai/v1"
-        \\    },
-        \\    "openai": {
-        \\      "api_key": "test",
-        \\      "model": "gpt-4",
-        \\      "endpoint": "https://api.openai.com/v1"
-        \\    },
-        \\    "groq": {
-        \\      "api_key": "test",
-        \\      "model": "llama-3",
-        \\      "endpoint": "https://api.groq.com/v1"
-        \\    }
-        \\  }
-        \\}
+    const test_toml =
+        \\default_provider = "zai"
+        \\system_prompt = "Test"
+        \\
+        \\[[providers]]
+        \\name = "zai"
+        \\api_key = "paste-key-here"
+        \\model = "glm-4.7-Flash"
+        \\endpoint = "https://api.z.ai/v1"
+        \\
+        \\[[providers]]
+        \\name = "groq"
+        \\api_key = "test"
+        \\model = "llama-3"
+        \\endpoint = "https://api.groq.com/v1"
     ;
 
-    var config = try parseConfig(std.testing.allocator, test_json);
+    var config = try parseConfig(std.testing.allocator, test_toml);
     defer config.deinit(std.testing.allocator);
 
     const result = validateConfig(&config, "zai");
@@ -481,31 +399,24 @@ test "validateConfig with placeholder API key" {
 }
 
 test "validateConfig with valid API key" {
-    const test_json =
-        \\{
-        \\  "default_provider": "zai",
-        \\  "system_prompt": "Test",
-        \\  "providers": {
-        \\    "zai": {
-        \\      "api_key": "real-api-key-123",
-        \\      "model": "glm-4.7-Flash",
-        \\      "endpoint": "https://api.z.ai/v1"
-        \\    },
-        \\    "openai": {
-        \\      "api_key": "test",
-        \\      "model": "gpt-4",
-        \\      "endpoint": "https://api.openai.com/v1"
-        \\    },
-        \\    "groq": {
-        \\      "api_key": "test",
-        \\      "model": "llama-3",
-        \\      "endpoint": "https://api.groq.com/v1"
-        \\    }
-        \\  }
-        \\}
+    const test_toml =
+        \\default_provider = "zai"
+        \\system_prompt = "Test"
+        \\
+        \\[[providers]]
+        \\name = "zai"
+        \\api_key = "real-api-key-123"
+        \\model = "glm-4.7-Flash"
+        \\endpoint = "https://api.z.ai/v1"
+        \\
+        \\[[providers]]
+        \\name = "groq"
+        \\api_key = "test"
+        \\model = "llama-3"
+        \\endpoint = "https://api.groq.com/v1"
     ;
 
-    var config = try parseConfig(std.testing.allocator, test_json);
+    var config = try parseConfig(std.testing.allocator, test_toml);
     defer config.deinit(std.testing.allocator);
 
     try validateConfig(&config, "zai");

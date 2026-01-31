@@ -145,7 +145,7 @@ pub fn printConfigInfo(allocator: std.mem.Allocator, writer: anytype) !void {
     // Get the model from the default provider using registry lookup
     const active_model = blk: {
         const metadata = registry.getByName(cfg.default_provider) orelse break :blk "unknown";
-        const provider_config = cfg.providers.get(metadata.id);
+        const provider_config = cfg.getProvider(metadata.name) catch break :blk "unknown";
         break :blk provider_config.model;
     };
 
@@ -157,7 +157,7 @@ pub fn printConfigInfo(allocator: std.mem.Allocator, writer: anytype) !void {
     try writer.print("\n{s}Providers:{s}\n", .{ Color.bold, Color.reset });
 
     for (registry.all) |metadata| {
-        const provider_config = cfg.providers.get(metadata.id);
+        const provider_config = cfg.getProvider(metadata.name) catch continue;
         const is_default = std.mem.eql(u8, cfg.default_provider, metadata.id.name());
 
         // Check if API key is set (not a placeholder and not empty)

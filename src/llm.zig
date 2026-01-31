@@ -73,8 +73,8 @@ pub const Provider = struct {
 
         const parsed = self.vtable.parseResponse(self, response_body);
 
-        if (parsed) |message| {
-            self.logDebug("Parsed commit message: {s}", .{message});
+        if (parsed) |_| {
+            // Success - commit message will be displayed by main.zig
         } else |err| {
             switch (err) {
                 error.EmptyContent => self.logDebug("Parsed response: (empty content)", .{}),
