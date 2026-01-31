@@ -2,6 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 const registry = @import("providers/registry.zig");
 const zai_provider = @import("providers/zai.zig");
+const groq_provider = @import("providers/groq.zig");
 
 /// System prompt template for the commit message generator
 pub const SYSTEM_PROMPT_TEMPLATE =
@@ -25,20 +26,26 @@ pub const SYSTEM_PROMPT_TEMPLATE =
 ;
 
 /// Generate the default configuration JSON at comptime
-/// Uses zai provider metadata from registry
-pub fn generateDefaultConfig(default_provider: registry.ProviderId) []const u8 {
+/// Uses provider metadata from registry
+pub fn generateDefaultConfig(comptime default_provider: registry.ProviderId) []const u8 {
     return comptime generateDefaultConfigImpl(default_provider);
 }
 
 fn generateDefaultConfigImpl(default_provider: registry.ProviderId) []const u8 {
-    // Get zai provider metadata directly
+    // Get provider metadata directly
     const zai_metadata = zai_provider.metadata;
+    const groq_metadata = groq_provider.metadata;
 
     return std.fmt.comptimePrint(
         "{{\\n" ++
             "  \"default_provider\": \"{s}\",\\n" ++
             "  \"providers\": {{\\n" ++
             "    \"zai\": {{\\n" ++
+            "      \"api_key\": \"{s}\",\\n" ++
+            "      \"model\": \"{s}\",\\n" ++
+            "      \"endpoint\": \"{s}\"\\n" ++
+            "    }},\\n" ++
+            "    \"groq\": {{\\n" ++
             "      \"api_key\": \"{s}\",\\n" ++
             "      \"model\": \"{s}\",\\n" ++
             "      \"endpoint\": \"{s}\"\\n" ++
@@ -51,6 +58,9 @@ fn generateDefaultConfigImpl(default_provider: registry.ProviderId) []const u8 {
             zai_metadata.api_key_placeholder,
             zai_metadata.default_model,
             zai_metadata.endpoint,
+            groq_metadata.api_key_placeholder,
+            groq_metadata.default_model,
+            groq_metadata.endpoint,
             SYSTEM_PROMPT_TEMPLATE,
         },
     );
@@ -90,6 +100,7 @@ pub const Providers = struct {
     pub fn get(self: *const Providers, id: registry.ProviderId) *const ProviderConfig {
         return switch (id) {
             .zai => &self.zai,
+            .groq => &self.groq,
         };
     }
 };

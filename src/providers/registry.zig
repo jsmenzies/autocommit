@@ -1,9 +1,11 @@
 const std = @import("std");
 
 const zai = @import("zai.zig");
+const groq = @import("groq.zig");
 
 pub const ProviderId = enum {
     zai,
+    groq,
 
     pub fn name(self: ProviderId) []const u8 {
         return @tagName(self);
@@ -29,7 +31,7 @@ pub const ProviderMetadata = struct {
 };
 
 const RegistryBuilder = struct {
-    const provider_modules = .{zai};
+    const provider_modules = .{ zai, groq };
 
     fn buildMetadata() [provider_modules.len]ProviderMetadata {
         comptime {
@@ -92,7 +94,9 @@ pub fn isValidProvider(name: []const u8) bool {
 // Test section
 test "ProviderId name and fromString" {
     try std.testing.expectEqualStrings("zai", ProviderId.zai.name());
+    try std.testing.expectEqualStrings("groq", ProviderId.groq.name());
     try std.testing.expectEqual(ProviderId.zai, ProviderId.fromString("zai").?);
+    try std.testing.expectEqual(ProviderId.groq, ProviderId.fromString("groq").?);
     try std.testing.expect(ProviderId.fromString("unknown") == null);
 }
 
@@ -102,28 +106,40 @@ test "getById returns correct metadata" {
     try std.testing.expectEqualStrings("zai", zai_metadata.name);
     try std.testing.expectEqualStrings("Z AI", zai_metadata.display_name);
     try std.testing.expectEqualStrings("glm-4.7-Flash", zai_metadata.default_model);
+
+    const groq_metadata = getById(.groq).?;
+    try std.testing.expectEqual(ProviderId.groq, groq_metadata.id);
+    try std.testing.expectEqualStrings("groq", groq_metadata.name);
+    try std.testing.expectEqualStrings("Groq", groq_metadata.display_name);
+    try std.testing.expectEqualStrings("llama-3.1-8b-instant", groq_metadata.default_model);
 }
 
 test "getByName returns correct metadata" {
     const zai_metadata = getByName("zai").?;
     try std.testing.expectEqual(ProviderId.zai, zai_metadata.id);
     try std.testing.expectEqualStrings("glm-4.7-Flash", zai_metadata.default_model);
+
+    const groq_metadata = getByName("groq").?;
+    try std.testing.expectEqual(ProviderId.groq, groq_metadata.id);
+    try std.testing.expectEqualStrings("llama-3.1-8b-instant", groq_metadata.default_model);
 }
 
 test "getIndex returns correct indices" {
     try std.testing.expectEqual(0, getIndex(.zai));
+    try std.testing.expectEqual(1, getIndex(.groq));
 }
 
 test "isValidProvider correctly identifies valid names" {
     try std.testing.expect(isValidProvider("zai"));
+    try std.testing.expect(isValidProvider("groq"));
     try std.testing.expect(!isValidProvider("unknown"));
     try std.testing.expect(!isValidProvider("openai"));
-    try std.testing.expect(!isValidProvider("groq"));
 }
 
 test "getVtable returns vtable for implemented providers" {
     // Just verify we can get the vtable without error
     _ = try getVtable("zai");
+    _ = try getVtable("groq");
 }
 
 test "getVtable returns error for unknown providers" {
