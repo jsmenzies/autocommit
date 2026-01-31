@@ -8,17 +8,15 @@ A CLI tool that analyzes Git history and generates conventional commit messages 
 
 ### ✅ Implemented
 - CLI argument parsing with help, version, and config commands
-- Configuration management (JSON-based)
+- Configuration management (TOML-based)
 - Cross-platform config file paths (macOS/Linux)
 - GitHub CI/CD workflows (PR checks, releases)
 - Debug mode support
-
-### 🚧 Not Yet Implemented
-- Git operations (diff, commit, push)
+- Git operations (diff, status, add, commit, push)
 - HTTP client for API calls
-- LLM provider implementations (z.ai, OpenAI, Groq)
-- Commit message generation
-- Interactive prompts
+- LLM provider implementations (z.ai, Groq)
+- Commit message generation with multiline support
+- Interactive prompts for adding files, committing, and pushing
 
 ## Installation
 
@@ -61,7 +59,7 @@ autocommit config path        # Show configuration file path
 - `--add` - Auto-add all unstaged files before committing
 - `--push` - Auto-push after committing
 - `--accept` - Auto-accept generated commit message without prompting
-- `--provider <name>` - Override provider (zai, openai, groq)
+- `--provider <name>` - Override provider (zai, groq)
 - `--model <name>` - Override model
 - `--debug` - Enable debug output
 - `--version` - Show version information
@@ -136,37 +134,94 @@ This provides a quick "commit and push everything" workflow for rapid developmen
 
 ## Configuration
 
-Configuration is stored as JSON at `~/.config/autocommit/config.json` by default on both macOS and Linux.
+Configuration is stored as TOML at `~/.config/autocommit/config.toml` by default on both macOS and Linux.
 
-If the `XDG_CONFIG_HOME` environment variable is set, the config will be stored at `$XDG_CONFIG_HOME/autocommit/config.json` instead.
+If the `XDG_CONFIG_HOME` environment variable is set, the config will be stored at `$XDG_CONFIG_HOME/autocommit/config.toml` instead.
 
-### Example Configuration
+### Generated Configuration
 
-Run `autocommit config` to create and edit the configuration file.
+When you run `autocommit config`, the tool automatically creates a default configuration file with the following structure:
+
+```toml
+default_provider = "zai"
+
+system_prompt = """
+You are a commit message generator. Analyze the git diff and create a conventional commit message.
+Follow these rules:
+- Use format for the first line: <type>(<scope>): <subject>
+- Types: feat, fix, docs, style, refactor, test, chore
+- Scope is optional - omit if not needed
+- First line (subject) should be a concise summary
+- Use present tense, imperative mood
+- Add a blank line after the subject if you need a body
+- Body should explain the "what" and "why" for complex or multiple changes
+- Use bullet points in the body for multiple distinct changes
+- Do not include any explanation outside the commit message
+- Do not use markdown code blocks
+"""
+
+[[providers]]
+name = "zai"
+api_key = "paste-key-here"
+model = "glm-4.7-Flash"
+endpoint = "https://api.z.ai/api/paas/v4/chat/completions"
+
+[[providers]]
+name = "groq"
+api_key = "paste-key-here"
+model = "llama-3.1-8b-instant"
+endpoint = "https://api.groq.com/openai/v1/chat/completions"
+```
 
 > **Note**: Groq offers a free tier for many models. Sign up at https://groq.com to get an API key.
 
-```json
-{
-  "default_provider": "groq",
-  "system_prompt": "<see Default Prompt section below>",
-  "providers": {
-    "groq": {
-      "api_key": "your-groq-api-key-here",
-      "model": "llama-3.1-8b-instant",
-      "endpoint": "https://api.groq.com/openai/v1/chat/completions"
-    }
-  }
-}
+### System Prompt
+
+The default system prompt instructs the LLM to generate conventional commit messages. It supports both single-line and multiline commit messages:
+
+**Single-line format** (for simple changes):
 ```
+<type>(<scope>): <subject>
+```
+
+Example:
+```
+feat(auth): add password validation to login form
+```
+
+**Multiline format** (for complex or multiple changes):
+```
+<type>(<scope>): <subject>
+
+<body with bullet points>
+```
+
+Example:
+```
+feat(api): implement rate limiting middleware
+
+- Add sliding window rate limiting with Redis backend
+- Configurable limits per endpoint via env vars
+- Returns 429 status with Retry-After header
+```
+
+The prompt instructs the LLM to:
+- Use conventional commit types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
+- Keep the subject line concise and in present tense, imperative mood
+- Add a body section for complex changes or when there are multiple distinct changes
+- Use bullet points in the body to describe what and why
 
 ### Configuration Options
 
-- `default_provider` - Which LLM provider to use (zai, openai, groq)
-- `system_prompt` - Custom prompt for commit message generation
+- `default_provider` - Which LLM provider to use (zai, groq)
+- `system_prompt` - Custom prompt for commit message generation (see above for default behavior)
 - `providers.{name}.api_key` - API key for the provider
 - `providers.{name}.model` - Model to use
 - `providers.{name}.endpoint` - API endpoint URL
+
+### Custom System Prompt
+
+You can customize the system prompt in your config file to change how commit messages are generated. The default prompt is optimized for conventional commits with support for multiline messages when needed.
 
 ## Build Commands
 

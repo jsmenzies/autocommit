@@ -240,19 +240,27 @@ pub const FileEntry = struct {
     state: FileState,
 };
 
+/// Helper that filters iterator items by a predicate
+fn nextFiltered(
+    inner: *std.StringHashMap(FileState).Iterator,
+    comptime predicate: fn (FileState) bool,
+) ?FileEntry {
+    while (inner.next()) |entry| {
+        if (predicate(entry.value_ptr.*)) {
+            return .{
+                .path = entry.key_ptr.*,
+                .state = entry.value_ptr.*,
+            };
+        }
+    }
+    return null;
+}
+
 pub const StagedIterator = struct {
     inner: std.StringHashMap(FileState).Iterator,
 
     pub fn next(self: *StagedIterator) ?FileEntry {
-        while (self.inner.next()) |entry| {
-            if (entry.value_ptr.hasStagedChanges()) {
-                return .{
-                    .path = entry.key_ptr.*,
-                    .state = entry.value_ptr.*,
-                };
-            }
-        }
-        return null;
+        return nextFiltered(&self.inner, FileState.hasStagedChanges);
     }
 };
 
@@ -260,15 +268,7 @@ pub const UnstagedIterator = struct {
     inner: std.StringHashMap(FileState).Iterator,
 
     pub fn next(self: *UnstagedIterator) ?FileEntry {
-        while (self.inner.next()) |entry| {
-            if (entry.value_ptr.hasUnstagedChanges()) {
-                return .{
-                    .path = entry.key_ptr.*,
-                    .state = entry.value_ptr.*,
-                };
-            }
-        }
-        return null;
+        return nextFiltered(&self.inner, FileState.hasUnstagedChanges);
     }
 };
 
@@ -276,15 +276,7 @@ pub const UntrackedIterator = struct {
     inner: std.StringHashMap(FileState).Iterator,
 
     pub fn next(self: *UntrackedIterator) ?FileEntry {
-        while (self.inner.next()) |entry| {
-            if (entry.value_ptr.isUntracked()) {
-                return .{
-                    .path = entry.key_ptr.*,
-                    .state = entry.value_ptr.*,
-                };
-            }
-        }
-        return null;
+        return nextFiltered(&self.inner, FileState.isUntracked);
     }
 };
 
@@ -369,7 +361,6 @@ pub fn printGitStatus(writer: anytype, status: *GitStatus) !bool {
     return true;
 }
 
-/// Add all unstaged and untracked files to the staging area
 pub fn addAll(allocator: std.mem.Allocator) !void {
     const result = std.process.Child.run(.{
         .allocator = allocator,
@@ -384,7 +375,59 @@ pub fn addAll(allocator: std.mem.Allocator) !void {
     }
 }
 
-/// Count unstaged and untracked files (files that can be added)
+pub fn getStagedDiff(allocator: std.mem.Allocator) ![]const u8 {
+    const result = std.process.Child.run(.{
+        .allocator = allocator,
+        .argv = &[_][]const u8{ "git", "diff", "--cached" },
+        .max_output_bytes = 10 * 1024 * 1024, // 10MB max
+    }) catch return error.GitCommandFailed;
+
+    if (result.term.Exited != 0) {
+        allocator.free(result.stdout);
+        allocator.free(result.stderr);
+        return error.GitCommandFailed;
+    }
+
+    allocator.free(result.stderr);
+    return result.stdout;
+}
+
+pub fn commit(allocator: std.mem.Allocator, message: []const u8) !void {
+    const result = std.process.Child.run(.{
+        .allocator = allocator,
+        .argv = &[_][]const u8{ "git", "commit", "-m", message },
+        .max_output_bytes = 10 * 1024,
+    }) catch return error.GitCommandFailed;
+    defer allocator.free(result.stdout);
+    defer allocator.free(result.stderr);
+
+    if (result.term.Exited != 0) {
+        return error.GitCommandFailed;
+    }
+}
+
+pub fn push(allocator: std.mem.Allocator) !void {
+    const result = std.process.Child.run(.{
+        .allocator = allocator,
+        .argv = &[_][]const u8{ "git", "push" },
+        .max_output_bytes = 10 * 1024,
+    }) catch return error.GitCommandFailed;
+    defer allocator.free(result.stdout);
+    defer allocator.free(result.stderr);
+
+    if (result.term.Exited != 0) {
+        return error.GitCommandFailed;
+    }
+}
+
+pub fn truncateDiff(allocator: std.mem.Allocator, diff: []const u8, max_size: usize) ![]const u8 {
+    if (diff.len > max_size) {
+        return std.fmt.allocPrint(allocator, "{s}\n... (truncated)", .{diff[0..max_size]});
+    } else {
+        return allocator.dupe(u8, diff);
+    }
+}
+
 pub fn unstagedAndUntrackedCount(status: *GitStatus) usize {
     return status.unstagedCount() + status.untrackedCount();
 }
