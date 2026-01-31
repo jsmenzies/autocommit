@@ -4,7 +4,7 @@
     .minimum_zig_version = "0.13.0",
     .dependencies = .{
         .tomlz = .{
-            .url = "https://github.com/mattyhall/tomlz/archive/refs/tags/v0.1.0.tar.gz",
+            .url = "https://github.com/mattyhall/tomlz/archive/bb7706fb5a752526f74ce544fc15125be8e58495.tar.gz",
             .hash = "12207ffcc21b74386d241268719cffdd9ac124932f368286fa5deda1e0d230b41a53",
         },
     },
