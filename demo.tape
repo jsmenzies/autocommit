@@ -36,7 +36,7 @@ Sleep 2s
 
 Enter
 
-Sleep 4s
+Sleep 4500ms
 
 # Step 3: Show the alias tip
 Hide

@@ -2,21 +2,14 @@
 
 A CLI tool that analyzes Git history and generates conventional commit messages using LLM providers.
 
-> **Status**: Work in progress - Zig rewrite at Stage 4 of migration
+## Features
 
-## Current Implementation Status
-
-### ✅ Implemented
-- CLI argument parsing with help, version, and config commands
-- Configuration management (TOML-based)
-- Cross-platform config file paths (macOS/Linux)
-- GitHub CI/CD workflows (PR checks, releases)
-- Debug mode support
-- Git operations (diff, status, add, commit, push)
-- HTTP client for API calls
-- LLM provider implementations (z.ai, Groq)
-- Commit message generation with multiline support
-- Interactive prompts for adding files, committing, and pushing
+- **AI-Powered Commit Messages** - Automatically generates conventional commit messages from your git diffs using LLM providers (z.ai, Groq)
+- **Customizable System Prompt** - Edit the system prompt to customize how commit messages are generated (conventional commits, style, tone, etc.)
+- **Multiple LLM Providers** - Support for z.ai and Groq with easy provider switching
+- **Interactive Workflow** - Interactive prompts for staging files, reviewing commit messages, and pushing to remote
+- **Full Automation** - Optional flags for fully automated add, commit, and push workflow
+- **Cross-Platform** - Works on macOS and Linux
 
 ## Installation
 
@@ -250,40 +243,6 @@ zig build -Dtarget=aarch64-macos -Doptimize=ReleaseSmall
 
 # Linux x86_64 (static)
 zig build -Dtarget=x86_64-linux-musl -Doptimize=ReleaseSmall
-```
-
-## Migration from Go
-
-This is a ground-up rewrite from Go to Zig with the following goals:
-- Smaller binaries (~200KB vs ~3MB)
-- Faster startup times
-- Simpler architecture (no TUI, file-based config)
-- Standard library only (minimal dependencies)
-
-See [MIGRATION_PLAN.md](./MIGRATION_PLAN.md) for detailed migration stages.
-
-## Default Prompt
-
-The default system prompt used for commit message generation:
-
-```
-You are a commit message generator. Analyze the git diff and create a conventional commit message.
-Follow these rules:
-- Use format: <type>(<scope>): <subject>
-- Types: feat, fix, docs, style, refactor, test, chore
-- Scope is optional - omit if not needed
-- Keep subject under 72 characters
-- Use present tense, imperative mood
-- Be specific but concise
-- Do not include any explanation, only output the commit message
-- Do not use markdown code blocks
-
-Examples:
-- feat(auth): add password validation to login form
-- fix(api): handle nil pointer in user service
-- docs(readme): update installation instructions
-- refactor(db): optimize query performance with index
-- feat: add new feature without scope
 ```
 
 ## License
