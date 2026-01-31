@@ -2,6 +2,7 @@ const std = @import("std");
 const config = @import("config.zig");
 const registry = @import("providers/registry.zig");
 const build_options = @import("build_options");
+const colors = @import("colors.zig");
 
 pub const Command = enum {
     main, // Default: generate commit message
@@ -31,16 +32,9 @@ pub const ParseError = error{
     MissingProviderValue,
 };
 
-const Color = struct {
-    const reset = "\x1b[0m";
-    const bold = "\x1b[1m";
-    const red = "\x1b[31m";
-    const green = "\x1b[32m";
-    const yellow = "\x1b[33m";
-    const cyan = "\x1b[36m";
-    const gray = "\x1b[90m";
-    const magenta = "\x1b[35m";
-};
+pub const API_KEY_PLACEHOLDER = "paste-key-here";
+
+const Color = colors.Color;
 
 pub fn parse(allocator: std.mem.Allocator) !Args {
     const args = try std.process.argsAlloc(allocator);
@@ -103,7 +97,7 @@ pub fn parseFromSlice(allocator: std.mem.Allocator, args: []const []const u8) !A
 
 fn checkApiKeySet(api_key: []const u8) bool {
     if (api_key.len == 0) return false;
-    return !std.mem.eql(u8, api_key, "paste-key-here");
+    return !std.mem.eql(u8, api_key, API_KEY_PLACEHOLDER);
 }
 
 pub fn printConfigInfo(allocator: std.mem.Allocator, writer: anytype) !void {
@@ -167,7 +161,7 @@ pub fn printConfigInfo(allocator: std.mem.Allocator, writer: anytype) !void {
         if (is_default) {
             try writer.print("  {s}{s}{s} {s}(default){s}:\n", .{ Color.cyan, metadata.id.name(), Color.reset, Color.yellow, Color.reset });
         } else {
-            try writer.print("  {s}{s}{s}:\n", .{ Color.gray, metadata.id.name(), Color.reset });
+            try writer.print("  {s}{s}{s}:\n", .{ Color.cyan, metadata.id.name(), Color.reset });
         }
 
         // Model (always shown in normal color)

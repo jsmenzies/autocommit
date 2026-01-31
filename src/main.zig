@@ -4,11 +4,8 @@ const config = @import("config.zig");
 const git = @import("git.zig");
 const http_client = @import("http_client.zig");
 const llm = @import("llm.zig");
-
-/// Print a debug message with "Debug:" prefix in yellow
-pub fn debug(writer: anytype, comptime fmt: []const u8, args: anytype) !void {
-    try writer.print("{s}Debug:{s} " ++ fmt, .{ "\x1b[33m", "\x1b[0m" } ++ args);
-}
+const colors = @import("colors.zig");
+const Color = colors.Color;
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -23,7 +20,7 @@ pub fn main() !void {
     const debug_log = struct {
         fn call(ctx: ?*anyopaque, message: []const u8) void {
             const file: *std.fs.File = @ptrCast(@alignCast(ctx orelse return));
-            _ = file.writer().print("{s}Debug:{s} {s}\n", .{ "\x1b[33m", "\x1b[0m", message }) catch {};
+            _ = file.writer().print("{s}Debug:{s} {s}\n", .{ Color.yellow, Color.reset, message }) catch {};
         }
     }.call;
 
@@ -97,7 +94,7 @@ pub fn main() !void {
     };
 
     if (args.debug) {
-        try debug(stderr, "provider={s}, model={s}\n", .{ provider_name, provider_cfg.model });
+        try colors.debug(stderr, "provider={s}, model={s}\n", .{ provider_name, provider_cfg.model });
     }
 
     try stdout.print("\n", .{});
@@ -120,7 +117,7 @@ pub fn main() !void {
     const addable_count = git.unstagedAndUntrackedCount(&status);
     if (addable_count > 0) {
         if (args.auto_add) {
-            try stdout.print("\n{s}Auto-adding {d} file(s)...{s}\n", .{ "\x1b[32m", addable_count, "\x1b[0m" });
+            try stdout.print("\n{s}Auto-adding {d} file(s)...{s}\n", .{ Color.green, addable_count, Color.reset });
             git.addAll(allocator) catch {
                 try stderr.print("Failed to add files\n", .{});
                 std.process.exit(1);
@@ -132,22 +129,12 @@ pub fn main() !void {
                 std.process.exit(1);
             };
         } else {
-            try stdout.print("\n{d} file(s) can be added. Add them? [{s}Y/n{s}] ", .{ addable_count, "\x1b[32m", "\x1b[0m" });
-
-            var input_buffer: [10]u8 = undefined;
-            const stdin = std.io.getStdIn().reader();
-            const input = stdin.readUntilDelimiterOrEof(&input_buffer, '\n') catch null;
-
-            var should_add = true;
-            if (input) |line| {
-                const trimmed = std.mem.trim(u8, line, " \r\t");
-                if (std.mem.eql(u8, trimmed, "n") or std.mem.eql(u8, trimmed, "N")) {
-                    should_add = false;
-                }
-            }
+            var prompt_buf: [64]u8 = undefined;
+            const prompt = try std.fmt.bufPrint(&prompt_buf, "\n{d} file(s) can be added. Add them?", .{addable_count});
+            const should_add = try confirmYesNo(stdout, stderr, prompt, true);
 
             if (should_add) {
-                try stdout.print("{s}Adding {d} file(s)...{s}\n", .{ "\x1b[32m", addable_count, "\x1b[0m" });
+                try stdout.print("{s}Adding {d} file(s)...{s}\n", .{ Color.green, addable_count, Color.reset });
                 git.addAll(allocator) catch {
                     try stderr.print("Failed to add files\n", .{});
                     std.process.exit(1);
@@ -188,7 +175,7 @@ pub fn main() !void {
 
     if (args.debug) {
         try stdout.print("\n", .{});
-        try debug(stderr, "Diff size: {d} bytes\n", .{diff.len});
+        try colors.debug(stderr, "Diff size: {d} bytes\n", .{diff.len});
     }
 
     const max_diff_size = 100 * 1024;
@@ -211,44 +198,48 @@ pub fn main() !void {
         std.process.exit(1);
     };
 
-    try stdout.print("\n{s}Generated commit message:{s}\n{s}{s}{s}\n", .{ "\x1b[1m", "\x1b[0m", "\x1b[36m", commit_message, "\x1b[0m" });
+    try stdout.print("\n{s}Generated commit message:{s}\n{s}{s}{s}\n", .{ Color.bold, Color.reset, Color.cyan, commit_message, Color.reset });
 
     if (!args.auto_accept) {
-        const should_commit = try confirmCommit(stdout, stderr);
+        var commit_prompt_buf: [64]u8 = undefined;
+        const commit_prompt = try std.fmt.bufPrint(&commit_prompt_buf, "\n{s}Proceed with commit?{s}", .{ Color.bold, Color.reset });
+        const should_commit = try confirmYesNo(stdout, stderr, commit_prompt, false);
         if (!should_commit) {
             allocator.free(commit_message);
-            try stdout.print("\n{s}Aborted, no commit made.{s}\n", .{ "\x1b[33m", "\x1b[0m" });
+            try stdout.print("\n{s}Aborted, no commit made.{s}\n", .{ Color.yellow, Color.reset });
             std.process.exit(0);
         }
     } else {
-        try stdout.print("\n{s}Auto-accept enabled, committing...{s}\n", .{ "\x1b[33m", "\x1b[0m" });
+        try stdout.print("\n{s}Auto-accept enabled, committing...{s}\n", .{ Color.yellow, Color.reset });
     }
 
-    try stdout.print("\n{s}Committing...{s}\n", .{ "\x1b[32m", "\x1b[0m" });
+    try stdout.print("\n{s}Committing...{s}\n", .{ Color.green, Color.reset });
     try git.commit(allocator, commit_message);
-    try stdout.print("{s}Committed successfully!{s}\n", .{ "\x1b[32m", "\x1b[0m" });
+    try stdout.print("{s}Committed successfully!{s}\n", .{ Color.green, Color.reset });
 
     var should_push = args.auto_push;
     if (args.debug) {
-        try debug(stderr, "auto_push flag={}, should_push={}\n", .{ args.auto_push, should_push });
+        try colors.debug(stderr, "auto_push flag={}, should_push={}\n", .{ args.auto_push, should_push });
     }
 
     if (!should_push) {
-        should_push = try confirmPush(stdout, stderr);
+        var push_prompt_buf: [64]u8 = undefined;
+        const push_prompt = try std.fmt.bufPrint(&push_prompt_buf, "\n{s}Push to remote?{s}", .{ Color.bold, Color.reset });
+        should_push = try confirmYesNo(stdout, stderr, push_prompt, true);
     } else if (args.debug) {
-        try debug(stderr, "Auto-push enabled, skipping prompt\n", .{});
+        try colors.debug(stderr, "Auto-push enabled, skipping prompt\n", .{});
     }
 
     if (should_push) {
-        try stdout.print("{s}Pushing...{s}\n", .{ "\x1b[32m", "\x1b[0m" });
+        try stdout.print("{s}Pushing...{s}\n", .{ Color.green, Color.reset });
         if (git.push(allocator)) {
-            try stdout.print("{s}Pushed successfully!{s}\n", .{ "\x1b[32m", "\x1b[0m" });
+            try stdout.print("{s}Pushed successfully!{s}\n", .{ Color.green, Color.reset });
         } else |err| {
-            try stderr.print("{s}Warning: Push failed: {s}{s}\n", .{ "\x1b[33m", @errorName(err), "\x1b[0m" });
+            try stderr.print("{s}Warning: Push failed: {s}{s}\n", .{ Color.yellow, @errorName(err), Color.reset });
             // Don't exit - commit succeeded, just push failed
         }
     } else if (args.debug) {
-        try debug(stderr, "Push skipped\n", .{});
+        try colors.debug(stderr, "Push skipped\n", .{});
     }
 
     allocator.free(commit_message);
@@ -263,15 +254,15 @@ test {
 }
 
 fn printDebugInfo(args: *const cli.Args, stderr: anytype) !void {
-    try debug(stderr, "Command={s}\n", .{@tagName(args.command)});
+    try colors.debug(stderr, "Command={s}\n", .{@tagName(args.command)});
     if (args.command == .config) {
-        try debug(stderr, "ConfigSubcommand={s}\n", .{@tagName(args.config_sub)});
+        try colors.debug(stderr, "ConfigSubcommand={s}\n", .{@tagName(args.config_sub)});
     }
-    try debug(stderr, "auto_add={}\n", .{args.auto_add});
-    try debug(stderr, "auto_push={}\n", .{args.auto_push});
-    try debug(stderr, "auto_accept={}\n", .{args.auto_accept});
+    try colors.debug(stderr, "auto_add={}\n", .{args.auto_add});
+    try colors.debug(stderr, "auto_push={}\n", .{args.auto_push});
+    try colors.debug(stderr, "auto_accept={}\n", .{args.auto_accept});
     if (args.provider) |p| {
-        try debug(stderr, "provider={s}\n", .{p});
+        try colors.debug(stderr, "provider={s}\n", .{p});
     }
 }
 
@@ -281,13 +272,18 @@ fn refreshStatus(allocator: std.mem.Allocator, status: *git.GitStatus, writer: a
     return git.printGitStatus(writer, status);
 }
 
-/// Simple confirmation prompt - returns true to commit, false to abort
-fn confirmCommit(stdout: anytype, stderr: anytype) !bool {
-    const stdin = std.io.getStdIn().reader();
-
-    try stdout.print("\n{s}Proceed with commit?{s} [{s}Y/n{s}] ", .{ "\x1b[1m", "\x1b[0m", "\x1b[32m", "\x1b[0m" });
+/// Generic Y/n confirmation prompt
+/// Returns true for yes (empty, y, Y), false for no (n, N, error, EOF)
+fn confirmYesNo(
+    stdout: anytype,
+    stderr: anytype,
+    prompt: []const u8,
+    default_on_eof: bool,
+) !bool {
+    try stdout.print("{s} [{s}Y/n{s}] ", .{ prompt, Color.green, Color.reset });
 
     var input_buffer: [10]u8 = undefined;
+    const stdin = std.io.getStdIn().reader();
     const input = stdin.readUntilDelimiterOrEof(&input_buffer, '\n') catch |err| {
         try stderr.print("Error reading input: {s}\n", .{@errorName(err)});
         return false;
@@ -295,32 +291,8 @@ fn confirmCommit(stdout: anytype, stderr: anytype) !bool {
 
     if (input) |line| {
         const choice = std.mem.trim(u8, line, " \r\t");
-        // Default to yes (empty or 'y'/'Y')
         return choice.len == 0 or std.mem.eql(u8, choice, "y") or std.mem.eql(u8, choice, "Y");
     }
 
-    // EOF - treat as abort
-    return false;
-}
-
-/// Ask user if they want to push - returns true to push, false to skip
-fn confirmPush(stdout: anytype, stderr: anytype) !bool {
-    const stdin = std.io.getStdIn().reader();
-
-    try stdout.print("\n{s}Push to remote?{s} [{s}Y/n{s}] ", .{ "\x1b[1m", "\x1b[0m", "\x1b[32m", "\x1b[0m" });
-
-    var input_buffer: [10]u8 = undefined;
-    const input = stdin.readUntilDelimiterOrEof(&input_buffer, '\n') catch |err| {
-        try stderr.print("Error reading input: {s}\n", .{@errorName(err)});
-        return false;
-    };
-
-    if (input) |line| {
-        const choice = std.mem.trim(u8, line, " \r\t");
-        // Default to yes (empty or 'y'/'Y')
-        return choice.len == 0 or std.mem.eql(u8, choice, "y") or std.mem.eql(u8, choice, "Y");
-    }
-
-    // EOF - treat as yes (push by default)
-    return true;
+    return default_on_eof;
 }

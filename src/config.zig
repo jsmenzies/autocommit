@@ -34,14 +34,6 @@ pub const SYSTEM_PROMPT_TEMPLATE =
 ;
 
 pub fn generateDefaultConfig(comptime default_provider: registry.ProviderId) []const u8 {
-    return comptime generateDefaultConfigImpl(default_provider);
-}
-
-fn generateDefaultConfigImpl(default_provider: registry.ProviderId) []const u8 {
-    return comptime generateDefaultConfigImplInner(default_provider);
-}
-
-fn generateDefaultConfigImplInner(comptime default_provider: registry.ProviderId) []const u8 {
     // Build provider entries dynamically at compile time using TOML array of tables
     const provider_entries = comptime blk: {
         var entries: [registry.all.len][]const u8 = undefined;
@@ -72,7 +64,7 @@ fn generateDefaultConfigImplInner(comptime default_provider: registry.ProviderId
         break :blk section;
     };
 
-    return std.fmt.comptimePrint(
+    return comptime std.fmt.comptimePrint(
         "default_provider = \"{s}\"\n\n" ++
             "system_prompt = \"\"\"\n{s}\"\"\"\n\n" ++
             "{s}",
@@ -267,15 +259,17 @@ pub fn validateConfig(config: *const Config, provider_name: []const u8) !void {
 }
 
 /// Get editor from environment or use defaults
-pub fn getEditor() []const u8 {
-    if (std.process.getEnvVarOwned(std.heap.page_allocator, "EDITOR")) |editor| {
+/// Caller owns the returned memory and must free it with the provided allocator
+pub fn getEditor(allocator: std.mem.Allocator) ![]const u8 {
+    if (std.process.getEnvVarOwned(allocator, "EDITOR")) |editor| {
         return editor;
     } else |_| {
-        // Default editors by platform
-        return switch (builtin.target.os.tag) {
+        // Default editors by platform - these are string literals, need to dup
+        const default_editor = switch (builtin.target.os.tag) {
             .windows => "notepad",
             else => "vi",
         };
+        return try allocator.dupe(u8, default_editor);
     }
 }
 
@@ -299,7 +293,8 @@ pub fn openInEditor(allocator: std.mem.Allocator) !void {
     }
 
     // Get editor
-    const editor = getEditor();
+    const editor = try getEditor(allocator);
+    defer allocator.free(editor);
 
     // Spawn editor process
     var child = std.process.Child.init(&[_][]const u8{ editor, config_path }, allocator);
@@ -317,19 +312,15 @@ pub fn openInEditor(allocator: std.mem.Allocator) !void {
     }
 
     // Validate the config is still parseable after editing
-    _ = load(allocator) catch |err| {
+    var loaded_config = load(allocator) catch |err| {
         const stderr = std.io.getStdErr().writer();
         try stderr.print("Warning: Config file may be invalid after editing: {s}\n", .{@errorName(err)});
         return;
     };
+    loaded_config.deinit(allocator);
 }
 
 // Test section
-test "getConfigPath uses XDG_CONFIG_HOME when set" {
-    // This test would need to set environment variables, which is tricky in tests
-    // For now, we just test the basic functionality
-}
-
 test "parseConfig with valid TOML" {
     const test_toml =
         \\default_provider = "zai"

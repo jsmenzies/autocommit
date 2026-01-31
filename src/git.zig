@@ -240,19 +240,27 @@ pub const FileEntry = struct {
     state: FileState,
 };
 
+/// Helper that filters iterator items by a predicate
+fn nextFiltered(
+    inner: *std.StringHashMap(FileState).Iterator,
+    comptime predicate: fn (FileState) bool,
+) ?FileEntry {
+    while (inner.next()) |entry| {
+        if (predicate(entry.value_ptr.*)) {
+            return .{
+                .path = entry.key_ptr.*,
+                .state = entry.value_ptr.*,
+            };
+        }
+    }
+    return null;
+}
+
 pub const StagedIterator = struct {
     inner: std.StringHashMap(FileState).Iterator,
 
     pub fn next(self: *StagedIterator) ?FileEntry {
-        while (self.inner.next()) |entry| {
-            if (entry.value_ptr.hasStagedChanges()) {
-                return .{
-                    .path = entry.key_ptr.*,
-                    .state = entry.value_ptr.*,
-                };
-            }
-        }
-        return null;
+        return nextFiltered(&self.inner, FileState.hasStagedChanges);
     }
 };
 
@@ -260,15 +268,7 @@ pub const UnstagedIterator = struct {
     inner: std.StringHashMap(FileState).Iterator,
 
     pub fn next(self: *UnstagedIterator) ?FileEntry {
-        while (self.inner.next()) |entry| {
-            if (entry.value_ptr.hasUnstagedChanges()) {
-                return .{
-                    .path = entry.key_ptr.*,
-                    .state = entry.value_ptr.*,
-                };
-            }
-        }
-        return null;
+        return nextFiltered(&self.inner, FileState.hasUnstagedChanges);
     }
 };
 
@@ -276,15 +276,7 @@ pub const UntrackedIterator = struct {
     inner: std.StringHashMap(FileState).Iterator,
 
     pub fn next(self: *UntrackedIterator) ?FileEntry {
-        while (self.inner.next()) |entry| {
-            if (entry.value_ptr.isUntracked()) {
-                return .{
-                    .path = entry.key_ptr.*,
-                    .state = entry.value_ptr.*,
-                };
-            }
-        }
-        return null;
+        return nextFiltered(&self.inner, FileState.isUntracked);
     }
 };
 

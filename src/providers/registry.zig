@@ -56,10 +56,9 @@ const RegistryBuilder = struct {
 pub const all = RegistryBuilder.buildMetadata();
 
 pub fn getById(id: ProviderId) ?*const ProviderMetadata {
-    for (&all) |*metadata| {
-        if (metadata.id == id) return metadata;
-    }
-    return null;
+    const index = @intFromEnum(id);
+    if (index >= all.len) return null;
+    return &all[index];
 }
 
 pub fn getByName(name: []const u8) ?*const ProviderMetadata {
@@ -80,10 +79,7 @@ pub fn getVtable(name: []const u8) !*const @import("../llm.zig").Provider.VTable
 }
 
 pub fn getIndex(id: ProviderId) usize {
-    for (all, 0..) |metadata, i| {
-        if (metadata.id == id) return i;
-    }
-    unreachable; // ProviderId is always valid
+    return @intFromEnum(id);
 }
 
 pub fn isValidProvider(name: []const u8) bool {
