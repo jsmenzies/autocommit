@@ -5,6 +5,7 @@ const git = @import("git.zig");
 const http_client = @import("http_client.zig");
 const llm = @import("llm.zig");
 
+/// Print a debug message with "Debug:" prefix in yellow
 pub fn debug(writer: anytype, comptime fmt: []const u8, args: anytype) !void {
     try writer.print("{s}Debug:{s} " ++ fmt, .{ "\x1b[33m", "\x1b[0m" } ++ args);
 }
@@ -15,7 +16,16 @@ pub fn main() !void {
     const allocator = gpa.allocator();
 
     const stdout = std.io.getStdOut().writer();
-    const stderr = std.io.getStdErr().writer();
+    const stderr_file = std.io.getStdErr();
+    const stderr = stderr_file.writer();
+
+    // Create debug callback that writes to stderr
+    const debug_log = struct {
+        fn call(ctx: ?*anyopaque, message: []const u8) void {
+            const file: *std.fs.File = @ptrCast(@alignCast(ctx orelse return));
+            _ = file.writer().print("{s}Debug:{s} {s}\n", .{ "\x1b[33m", "\x1b[0m", message }) catch {};
+        }
+    }.call;
 
     const args = cli.parse(allocator) catch |err| {
         switch (err) {
@@ -160,7 +170,14 @@ pub fn main() !void {
     var http = http_client.HttpClient.init(allocator);
     defer http.deinit();
 
-    var provider = llm.createProvider(allocator, provider_name, provider_cfg.*, &http) catch |err| {
+    var provider = llm.createProvider(
+        allocator,
+        provider_name,
+        provider_cfg.*,
+        &http,
+        if (args.debug) debug_log else null,
+        if (args.debug) @ptrCast(@constCast(&stderr_file)) else null,
+    ) catch |err| {
         try stderr.print("Failed to create provider: {s}\n", .{@errorName(err)});
         std.process.exit(1);
     };
