@@ -171,6 +171,7 @@ pub fn main() !void {
     defer allocator.free(diff);
 
     if (args.debug) {
+        try stdout.print("\n", .{});
         try debug(stderr, "Diff size: {d} bytes\n", .{diff.len});
     }
 
