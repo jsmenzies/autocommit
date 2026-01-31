@@ -1,6 +1,6 @@
 # AutoCommit
 
-An ultra lightweight Zig CLI tool (~5.3MB) that analyzes Git history and generates conventional commit messages using LLM providers.
+An ultra lightweight Zig CLI tool (~900KB) that analyzes Git history and generates conventional commit messages using LLM providers.
 
 ![Demo](demo.gif)
 
