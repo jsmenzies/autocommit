@@ -94,8 +94,8 @@ pub fn main() !void {
     };
     defer status.deinit();
 
-    var has_changes = git.printGitStatus(stderr, &status) catch {
-        try stderr.print("Failed to print git status\n", .{});
+    const has_changes = git.printGitStatus(stderr, &status) catch {
+        try stderr.print("Error: Could not get git status\n", .{});
         std.process.exit(1);
     };
 
@@ -113,17 +113,7 @@ pub fn main() !void {
             };
             try stdout.print("\n", .{});
 
-            // Re-fetch and print updated status
-            status.deinit();
-            status = git.getStatus(allocator) catch {
-                try stderr.print("Failed to get updated git status\n", .{});
-                std.process.exit(1);
-            };
-
-            has_changes = git.printGitStatus(stderr, &status) catch {
-                try stderr.print("Failed to print updated git status\n", .{});
-                std.process.exit(1);
-            };
+            try displayGitStatus(allocator, stderr, &status);
         } else {
             try stdout.print("\n{d} file(s) can be added. Add them? [Y/n] ", .{addable_count});
 
@@ -146,18 +136,7 @@ pub fn main() !void {
                     std.process.exit(1);
                 };
 
-                // Re-fetch and print updated status
-                status.deinit();
-                status = git.getStatus(allocator) catch {
-                    try stderr.print("Failed to get updated git status\n", .{});
-                    std.process.exit(1);
-                };
-
-                try stdout.print("\n", .{});
-                has_changes = git.printGitStatus(stderr, &status) catch {
-                    try stderr.print("Failed to print updated git status\n", .{});
-                    std.process.exit(1);
-                };
+                try displayGitStatus(allocator, stderr, &status);
             }
         }
     }
@@ -233,6 +212,19 @@ pub fn main() !void {
     }
 
     allocator.free(commit_message);
+}
+
+fn displayGitStatus(allocator: std.mem.Allocator, stderr: anytype, status: *git.Status) !void {
+    status.deinit();
+    status.* = git.getStatus(allocator) catch {
+        try stderr.print("Failed to get updated git status\n", .{});
+        std.process.exit(1);
+    };
+
+    _ = git.printGitStatus(stderr, status) catch {
+        try stderr.print("Failed to print updated git status\n", .{});
+        std.process.exit(1);
+    };
 }
 
 fn getStagedDiff(allocator: std.mem.Allocator) ![]const u8 {
