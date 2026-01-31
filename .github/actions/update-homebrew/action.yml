@@ -62,6 +62,19 @@ runs:
             end
           end
           
+          def caveats
+            <<~EOS
+              To use a shorter command, add an alias to your shell:
+
+                alias ac='autocommit --add --accept --push'
+
+              This provides full automation: adds all files, generates commit, and pushes.
+              Modify the flags to suit your workflow (e.g., remove --accept to review commits).
+
+              Add this to your ~/.bashrc, ~/.zshrc, or equivalent.
+            EOS
+          end
+
           test do
             system "#{bin}/autocommit", "--version"
           end

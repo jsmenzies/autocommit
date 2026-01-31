@@ -3,8 +3,6 @@ const builtin = @import("builtin");
 
 pub const Config = struct {
     default_provider: []const u8,
-    auto_add: bool,
-    auto_push: bool,
     system_prompt: []const u8,
     providers: Providers,
 
@@ -81,8 +79,6 @@ pub fn ensureConfigDir(allocator: std.mem.Allocator) !void {
 pub const DEFAULT_CONFIG =
     \\{
     \\  "default_provider": "groq",
-    \\  "auto_add": false,
-    \\  "auto_push": false,
     \\  "system_prompt": "You are a commit message generator. Analyze the git diff and create a conventional commit message.\nFollow these rules:\n- Use format: <type>(<scope>): <subject>\n- Types: feat, fix, docs, style, refactor, test, chore\n- Scope is optional - omit if not needed\n- Keep subject under 72 characters\n- Use present tense, imperative mood\n- Be specific but concise\n- Do not include any explanation, only output the commit message\n- Do not use markdown code blocks\n\nExamples:\n- feat(auth): add password validation to login form\n- fix(api): handle nil pointer in user service\n- docs(readme): update installation instructions\n- refactor(db): optimize query performance with index\n- feat: add new feature without scope",
     \\  "providers": {
     \\    "zai": {
@@ -178,9 +174,6 @@ fn parseConfig(allocator: std.mem.Allocator, content: []const u8) !Config {
     };
     errdefer allocator.free(default_provider);
 
-    const auto_add = if (obj.get("auto_add")) |v| v.bool else false;
-    const auto_push = if (obj.get("auto_push")) |v| v.bool else false;
-
     const system_prompt = try getStringField(allocator, obj, "system_prompt") orelse {
         return error.MissingSystemPrompt;
     };
@@ -200,8 +193,6 @@ fn parseConfig(allocator: std.mem.Allocator, content: []const u8) !Config {
 
     return Config{
         .default_provider = default_provider,
-        .auto_add = auto_add,
-        .auto_push = auto_push,
         .system_prompt = system_prompt,
         .providers = providers,
     };
@@ -378,8 +369,6 @@ test "parseConfig with valid JSON" {
     defer config.deinit(std.testing.allocator);
 
     try std.testing.expectEqualStrings("zai", config.default_provider);
-    try std.testing.expect(config.auto_add);
-    try std.testing.expect(!config.auto_push);
     try std.testing.expectEqualStrings("Test prompt", config.system_prompt);
     try std.testing.expectEqualStrings("test-key", config.providers.zai.api_key);
     try std.testing.expectEqualStrings("glm-4.7-Flash", config.providers.zai.model);
@@ -400,8 +389,6 @@ test "validateConfig with placeholder API key" {
     const test_json =
         \\{
         \\  "default_provider": "zai",
-        \\  "auto_add": false,
-        \\  "auto_push": false,
         \\  "system_prompt": "Test",
         \\  "providers": {
         \\    "zai": {
@@ -434,8 +421,6 @@ test "validateConfig with valid API key" {
     const test_json =
         \\{
         \\  "default_provider": "zai",
-        \\  "auto_add": false,
-        \\  "auto_push": false,
         \\  "system_prompt": "Test",
         \\  "providers": {
         \\    "zai": {

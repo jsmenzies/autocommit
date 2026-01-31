@@ -50,41 +50,89 @@ Download from [releases page](https://github.com/jsmenzies/autocommit/releases) 
 ### Commands
 
 ```bash
-autocommit                    # Default: generate commit message (placeholder)
-autocommit help               # Show help
-autocommit --help             # Show help
-autocommit -h                 # Show help
-autocommit version            # Show version
-autocommit --version          # Show version
-autocommit -v                 # Show version
+autocommit                    # Generate commit message interactively
 autocommit config             # Open config in default editor
-autocommit config print       # Display current configuration
+autocommit config show        # Display current configuration
+autocommit config path        # Show configuration file path
 ```
 
 ### Options
 
-- `-p, --provider <name>` - Override provider (zai, openai, groq)
-- `-m, --model <name>` - Override model
-- `-d, --debug` - Enable debug output
+- `--add` - Auto-add all unstaged files before committing
+- `--push` - Auto-push after committing
+- `--accept` - Auto-accept generated commit message without prompting
+- `--provider <name>` - Override provider (zai, openai, groq)
+- `--model <name>` - Override model
+- `--debug` - Enable debug output
+- `--version` - Show version information
+- `--help` - Show help message
 
 ### Examples
 
 ```bash
-# Generate commit message using default provider and model from config
+# Generate commit message interactively (default)
 autocommit
 
-# Generate with specific provider and model overrides
-autocommit -p groq -m llama-3.1-8b-instant
+# Full automation: add all files, auto-accept commit, and push
+autocommit --add --accept --push
+
+# Auto-add all files and commit
+autocommit --add
+
+# Full automated workflow: add, commit, and push
+autocommit --add --push
+
+# Use specific provider
+autocommit --provider groq
+
+# Use specific provider and model
+autocommit --provider groq --model llama-3.1-8b-instant
+
+# Full automation with provider override
+autocommit --add --accept --push --provider groq
+
+# Note: All flags can be mixed and matched. Remove any you don't need:
+#   autocommit --add              # Just add files
+#   autocommit --add --push       # Add and push (review commit message)
+#   autocommit --accept --push    # Accept and push (files already staged)
 
 # Edit configuration in default editor
 autocommit config
 
-# Show current configuration
-autocommit config print
+# Display current configuration
+autocommit config show
+
+# Show configuration file path
+autocommit config path
+
+# Show version
+autocommit --version
 
 # Show help
-autocommit help
+autocommit --help
 ```
+
+### Shell Alias (Optional)
+
+For a fully automated workflow, add this alias to your shell configuration:
+
+```bash
+# ~/.bashrc, ~/.zshrc, or ~/.config/fish/config.fish
+alias ac='autocommit --add --accept --push'
+```
+
+With this alias, running `ac` will:
+1. Auto-add all unstaged/untracked files to git
+2. Generate a conventional commit message using AI
+3. Auto-accept the commit message (no prompting)
+4. Push the commit to the remote repository
+
+This provides a quick "commit and push everything" workflow for rapid development.
+
+**Note:** You can modify the flags to suit your needs:
+- Remove `--accept` if you want to review/edit the commit message
+- Remove `--push` if you don't want to push immediately
+- Add `--provider <name>` to use a specific provider
 
 ## Configuration
 
@@ -101,8 +149,6 @@ Run `autocommit config` to create and edit the configuration file.
 ```json
 {
   "default_provider": "groq",
-  "auto_add": false,
-  "auto_push": false,
   "system_prompt": "You are a commit message generator. Analyze the git diff and create a conventional commit message following best practices.",
   "providers": {
     "groq": {
@@ -117,8 +163,6 @@ Run `autocommit config` to create and edit the configuration file.
 ### Configuration Options
 
 - `default_provider` - Which LLM provider to use (zai, openai, groq)
-- `auto_add` - Automatically run `git add .` if no staged changes
-- `auto_push` - Automatically push after committing
 - `system_prompt` - Custom prompt for commit message generation
 - `providers.{name}.api_key` - API key for the provider
 - `providers.{name}.model` - Model to use

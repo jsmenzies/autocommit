@@ -8,40 +8,74 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    const args = try cli.parse(allocator);
-    defer cli.free(&args, allocator);
-
     const stdout = std.io.getStdOut().writer();
     const stderr = std.io.getStdErr().writer();
 
+    // Parse arguments (handles --help and --version as special errors)
+    const args = cli.parse(allocator) catch |err| {
+        switch (err) {
+            error.HelpRequested => {
+                try cli.printHelp(stdout);
+                return;
+            },
+            error.VersionRequested => {
+                try cli.printVersion(stdout);
+                return;
+            },
+            error.MissingProviderValue => {
+                try stderr.print("Error: --provider requires a provider name\n", .{});
+                std.process.exit(1);
+            },
+            error.MissingModelValue => {
+                try stderr.print("Error: --model requires a model name\n", .{});
+                std.process.exit(1);
+            },
+            else => {
+                try stderr.print("Error parsing arguments: {s}\n", .{@errorName(err)});
+                std.process.exit(1);
+            },
+        }
+    };
+    defer cli.free(&args, allocator);
+
+    // Handle debug logging of flags
+    if (args.debug) {
+        try stderr.print("Debug: Command={s}\n", .{@tagName(args.command)});
+        if (args.command == .config) {
+            try stderr.print("Debug: ConfigSubcommand={s}\n", .{@tagName(args.config_sub)});
+        }
+        try stderr.print("Debug: auto_add={}\n", .{args.auto_add});
+        try stderr.print("Debug: auto_push={}\n", .{args.auto_push});
+        try stderr.print("Debug: auto_accept={}\n", .{args.auto_accept});
+        if (args.provider) |p| {
+            try stderr.print("Debug: provider={s}\n", .{p});
+        }
+        if (args.model) |m| {
+            try stderr.print("Debug: model={s}\n", .{m});
+        }
+        try stderr.print("\n", .{});
+    }
+
     // Handle commands
     switch (args.command) {
-        .help => {
-            try cli.printHelp(stdout);
-            return;
-        },
-        .version => {
-            try cli.printVersion(stdout);
-            return;
-        },
         .config => {
             switch (args.config_sub) {
                 .edit => try config.openInEditor(allocator),
-                .print => try cli.printConfigInfo(allocator, stdout),
+                .show => try cli.printConfigInfo(allocator, stdout),
+                .path => try cli.printConfigPath(allocator, stdout),
                 .unknown => {
-                    try stderr.print("Unknown config subcommand\nUsage: autocommit config [print]\n", .{});
+                    try stderr.print("Unknown config subcommand\nUsage: autocommit config [show|path]\n", .{});
                     std.process.exit(1);
                 },
             }
             return;
         },
-        .generate => {},
-        .unknown => {
-            try stderr.print("Unknown command\n", .{});
-            try cli.printHelp(stderr);
-            std.process.exit(1);
+        .main => {
+            // Continue to main commit generation logic
         },
     }
+
+    // Main commit generation logic
 
     // Check git repo
     if (!git.isRepo()) {
@@ -49,12 +83,33 @@ pub fn main() !void {
         std.process.exit(1);
     }
 
-    // Load config for auto_add setting
+    // Load config
     const cfg = config.load(allocator) catch |err| {
         try stderr.print("Failed to load config: {s}. Run 'autocommit config' to create one.\n", .{@errorName(err)});
         std.process.exit(1);
     };
     defer cfg.deinit(allocator);
+
+    // Determine provider and model (CLI overrides config)
+    const provider_name = args.provider orelse cfg.default_provider;
+
+    // Get provider config based on name
+    const provider_cfg = if (std.mem.eql(u8, provider_name, "zai"))
+        cfg.providers.zai
+    else if (std.mem.eql(u8, provider_name, "openai"))
+        cfg.providers.openai
+    else if (std.mem.eql(u8, provider_name, "groq"))
+        cfg.providers.groq
+    else {
+        try stderr.print("Unknown provider: {s}\n", .{provider_name});
+        std.process.exit(1);
+    };
+
+    const model_name = args.model orelse provider_cfg.model;
+
+    if (args.debug) {
+        try stderr.print("Debug: Using provider={s}, model={s}\n", .{ provider_name, model_name });
+    }
 
     // Print a blank line before starting CLI output for easier reading
     try stdout.print("\n", .{});
@@ -79,7 +134,7 @@ pub fn main() !void {
     // Check for unstaged/untracked files
     const addable_count = git.unstagedAndUntrackedCount(&status);
     if (addable_count > 0) {
-        if (cfg.auto_add) {
+        if (args.auto_add) {
             // Auto-add enabled - add files automatically
             try stdout.print("\n{s}Auto-adding {d} file(s)...{s}\n", .{ "\x1b[32m", addable_count, "\x1b[0m" });
             git.addAll(allocator) catch {
@@ -146,12 +201,18 @@ pub fn main() !void {
         try stdout.print("\nNo staged changes to commit.\n", .{});
         std.process.exit(0);
     }
-}
 
-test {
-    _ = @import("cli.zig");
-    _ = @import("config.zig");
-    _ = @import("git.zig");
+    // TODO: Implement commit message generation
+    // For now, just indicate what would happen
+    if (args.auto_accept) {
+        try stdout.print("\n{s}Auto-accept enabled - would commit without prompting{s}\n", .{ "\x1b[32m", "\x1b[0m" });
+    } else {
+        try stdout.print("\nWould prompt for commit message confirmation...\n", .{});
+    }
+
+    if (args.auto_push) {
+        try stdout.print("{s}Auto-push enabled - would push after commit{s}\n", .{ "\x1b[32m", "\x1b[0m" });
+    }
 }
 
 test {
