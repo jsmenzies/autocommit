@@ -203,6 +203,8 @@ pub fn main() !void {
         needs_regeneration = false;
     }
 
+    try stdout.print("\n{s}Generated commit message:{s}\n{s}\n", .{ "\x1b[1m", "\x1b[0m", commit_message });
+
     // Commit the changes
     try stdout.print("\n{s}Committing...{s}\n", .{ "\x1b[32m", "\x1b[0m" });
     try git.commit(allocator, commit_message);
