@@ -176,7 +176,7 @@ pub fn main() !void {
     };
     defer llm.destroyProvider(&provider, allocator);
 
-    const diff = try getStagedDiff(allocator);
+    const diff = try git.getStagedDiff(allocator);
     defer allocator.free(diff);
 
     if (args.debug) {
@@ -184,10 +184,7 @@ pub fn main() !void {
     }
 
     const max_diff_size = 100 * 1024;
-    const truncated_diff = if (diff.len > max_diff_size)
-        try std.fmt.allocPrint(allocator, "{s}\n... (truncated)", .{diff[0..max_diff_size]})
-    else
-        try allocator.dupe(u8, diff);
+    const truncated_diff = try git.truncateDiff(allocator, diff, max_diff_size);
     defer allocator.free(truncated_diff);
 
     // Generate commit message
@@ -222,62 +219,17 @@ pub fn main() !void {
 
     // Commit the changes
     try stdout.print("\n{s}Committing...{s}\n", .{ "\x1b[32m", "\x1b[0m" });
-    try commitChanges(allocator, commit_message);
+    try git.commit(allocator, commit_message);
     try stdout.print("{s}Committed successfully!{s}\n", .{ "\x1b[32m", "\x1b[0m" });
 
     // Push if enabled
     if (args.auto_push) {
         try stdout.print("{s}Pushing...{s}\n", .{ "\x1b[32m", "\x1b[0m" });
-        try pushChanges(allocator);
+        try git.push(allocator);
         try stdout.print("{s}Pushed successfully!{s}\n", .{ "\x1b[32m", "\x1b[0m" });
     }
 
     allocator.free(commit_message);
-}
-
-fn getStagedDiff(allocator: std.mem.Allocator) ![]const u8 {
-    const result = std.process.Child.run(.{
-        .allocator = allocator,
-        .argv = &[_][]const u8{ "git", "diff", "--cached" },
-        .max_output_bytes = 10 * 1024 * 1024, // 10MB max
-    }) catch return error.GitCommandFailed;
-
-    if (result.term.Exited != 0) {
-        allocator.free(result.stdout);
-        allocator.free(result.stderr);
-        return error.GitCommandFailed;
-    }
-
-    allocator.free(result.stderr);
-    return result.stdout;
-}
-
-fn commitChanges(allocator: std.mem.Allocator, message: []const u8) !void {
-    const result = std.process.Child.run(.{
-        .allocator = allocator,
-        .argv = &[_][]const u8{ "git", "commit", "-m", message },
-        .max_output_bytes = 10 * 1024,
-    }) catch return error.GitCommandFailed;
-    defer allocator.free(result.stdout);
-    defer allocator.free(result.stderr);
-
-    if (result.term.Exited != 0) {
-        return error.GitCommandFailed;
-    }
-}
-
-fn pushChanges(allocator: std.mem.Allocator) !void {
-    const result = std.process.Child.run(.{
-        .allocator = allocator,
-        .argv = &[_][]const u8{ "git", "push" },
-        .max_output_bytes = 10 * 1024,
-    }) catch return error.GitCommandFailed;
-    defer allocator.free(result.stdout);
-    defer allocator.free(result.stderr);
-
-    if (result.term.Exited != 0) {
-        return error.GitCommandFailed;
-    }
 }
 
 test {

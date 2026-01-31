@@ -384,6 +384,59 @@ pub fn addAll(allocator: std.mem.Allocator) !void {
     }
 }
 
+pub fn getStagedDiff(allocator: std.mem.Allocator) ![]const u8 {
+    const result = std.process.Child.run(.{
+        .allocator = allocator,
+        .argv = &[_][]const u8{ "git", "diff", "--cached" },
+        .max_output_bytes = 10 * 1024 * 1024, // 10MB max
+    }) catch return error.GitCommandFailed;
+
+    if (result.term.Exited != 0) {
+        allocator.free(result.stdout);
+        allocator.free(result.stderr);
+        return error.GitCommandFailed;
+    }
+
+    allocator.free(result.stderr);
+    return result.stdout;
+}
+
+pub fn commit(allocator: std.mem.Allocator, message: []const u8) !void {
+    const result = std.process.Child.run(.{
+        .allocator = allocator,
+        .argv = &[_][]const u8{ "git", "commit", "-m", message },
+        .max_output_bytes = 10 * 1024,
+    }) catch return error.GitCommandFailed;
+    defer allocator.free(result.stdout);
+    defer allocator.free(result.stderr);
+
+    if (result.term.Exited != 0) {
+        return error.GitCommandFailed;
+    }
+}
+
+pub fn push(allocator: std.mem.Allocator) !void {
+    const result = std.process.Child.run(.{
+        .allocator = allocator,
+        .argv = &[_][]const u8{ "git", "push" },
+        .max_output_bytes = 10 * 1024,
+    }) catch return error.GitCommandFailed;
+    defer allocator.free(result.stdout);
+    defer allocator.free(result.stderr);
+
+    if (result.term.Exited != 0) {
+        return error.GitCommandFailed;
+    }
+}
+
+pub fn truncateDiff(allocator: std.mem.Allocator, diff: []const u8, max_size: usize) ![]const u8 {
+    if (diff.len > max_size) {
+        return std.fmt.allocPrint(allocator, "{s}\n... (truncated)", .{diff[0..max_size]});
+    } else {
+        return allocator.dupe(u8, diff);
+    }
+}
+
 /// Count unstaged and untracked files (files that can be added)
 pub fn unstagedAndUntrackedCount(status: *GitStatus) usize {
     return status.unstagedCount() + status.untrackedCount();
