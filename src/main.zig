@@ -5,6 +5,11 @@ const git = @import("git.zig");
 const http_client = @import("http_client.zig");
 const llm = @import("llm.zig");
 
+/// Print a debug message with "Debug:" prefix in yellow
+pub fn debug(writer: anytype, comptime fmt: []const u8, args: anytype) !void {
+    try writer.print("{s}Debug:{s} " ++ fmt, .{ "\x1b[33m", "\x1b[0m" } ++ args);
+}
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
@@ -83,7 +88,7 @@ pub fn main() !void {
     };
 
     if (args.debug) {
-        try stderr.print("{s}Debug:{s} Using provider={s}, model={s}\n", .{ "\x1b[33m", "\x1b[0m", provider_name, provider_cfg.model });
+        try debug(stderr, "Using provider={s}, model={s}\n", .{ provider_name, provider_cfg.model });
     }
 
     try stdout.print("\n", .{});
@@ -166,7 +171,7 @@ pub fn main() !void {
     defer allocator.free(diff);
 
     if (args.debug) {
-        try stderr.print("{s}Debug:{s} Diff size: {d} bytes\n", .{ "\x1b[33m", "\x1b[0m", diff.len });
+        try debug(stderr, "Diff size: {d} bytes\n", .{diff.len});
     }
 
     const max_diff_size = 100 * 1024;
@@ -175,7 +180,7 @@ pub fn main() !void {
 
     // Generate commit message
     if (args.debug) {
-        try stderr.print("{s}Debug:{s} Generating commit message...\n", .{ "\x1b[33m", "\x1b[0m" });
+        try debug(stderr, "Generating commit message...\n", .{});
     }
 
     const commit_message = provider.generateCommitMessage(truncated_diff, cfg.system_prompt) catch |err| {
@@ -190,7 +195,7 @@ pub fn main() !void {
             llm.LlmError.OutOfMemory => "Out of memory.",
         };
         if (args.debug) {
-            try stderr.print("{s}Debug:{s} LLM error: {s}\n", .{ "\x1b[33m", "\x1b[0m", @errorName(err) });
+            try debug(stderr, "LLM error: {s}\n", .{@errorName(err)});
         }
         try stderr.print("Error: {s}\n", .{error_message});
         std.process.exit(1);
@@ -238,15 +243,15 @@ test {
 }
 
 fn printDebugInfo(args: *const cli.Args, stderr: anytype) !void {
-    try stderr.print("{s}Debug:{s} Command={s}\n", .{ "\x1b[33m", "\x1b[0m", @tagName(args.command) });
+    try debug(stderr, "Command={s}\n", .{@tagName(args.command)});
     if (args.command == .config) {
-        try stderr.print("{s}Debug:{s} ConfigSubcommand={s}\n", .{ "\x1b[33m", "\x1b[0m", @tagName(args.config_sub) });
+        try debug(stderr, "ConfigSubcommand={s}\n", .{@tagName(args.config_sub)});
     }
-    try stderr.print("{s}Debug:{s} auto_add={}\n", .{ "\x1b[33m", "\x1b[0m", args.auto_add });
-    try stderr.print("{s}Debug:{s} auto_push={}\n", .{ "\x1b[33m", "\x1b[0m", args.auto_push });
-    try stderr.print("{s}Debug:{s} auto_accept={}\n", .{ "\x1b[33m", "\x1b[0m", args.auto_accept });
+    try debug(stderr, "auto_add={}\n", .{args.auto_add});
+    try debug(stderr, "auto_push={}\n", .{args.auto_push});
+    try debug(stderr, "auto_accept={}\n", .{args.auto_accept});
     if (args.provider) |p| {
-        try stderr.print("{s}Debug:{s} provider={s}\n", .{ "\x1b[33m", "\x1b[0m", p });
+        try debug(stderr, "provider={s}\n", .{p});
     }
     try stderr.print("\n", .{});
 }
