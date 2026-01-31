@@ -369,7 +369,6 @@ pub fn printGitStatus(writer: anytype, status: *GitStatus) !bool {
     return true;
 }
 
-/// Add all unstaged and untracked files to the staging area
 pub fn addAll(allocator: std.mem.Allocator) !void {
     const result = std.process.Child.run(.{
         .allocator = allocator,
@@ -437,7 +436,6 @@ pub fn truncateDiff(allocator: std.mem.Allocator, diff: []const u8, max_size: us
     }
 }
 
-/// Count unstaged and untracked files (files that can be added)
 pub fn unstagedAndUntrackedCount(status: *GitStatus) usize {
     return status.unstagedCount() + status.untrackedCount();
 }
