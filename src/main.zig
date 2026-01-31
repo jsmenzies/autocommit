@@ -113,15 +113,8 @@ pub fn main() !void {
             };
             try stdout.print("\n", .{});
 
-            // Re-fetch and print updated status
-            status.deinit();
-            status = git.getStatus(allocator) catch {
-                try stderr.print("Failed to get updated git status\n", .{});
-                std.process.exit(1);
-            };
-
-            has_changes = git.printGitStatus(stderr, &status) catch {
-                try stderr.print("Failed to print updated git status\n", .{});
+            has_changes = refreshStatus(allocator, &status, stderr) catch {
+                try stderr.print("Failed to refresh git status\n", .{});
                 std.process.exit(1);
             };
         } else {
@@ -146,16 +139,9 @@ pub fn main() !void {
                     std.process.exit(1);
                 };
 
-                // Re-fetch and print updated status
-                status.deinit();
-                status = git.getStatus(allocator) catch {
-                    try stderr.print("Failed to get updated git status\n", .{});
-                    std.process.exit(1);
-                };
-
                 try stdout.print("\n", .{});
-                has_changes = git.printGitStatus(stderr, &status) catch {
-                    try stderr.print("Failed to print updated git status\n", .{});
+                has_changes = refreshStatus(allocator, &status, stderr) catch {
+                    try stderr.print("Failed to refresh git status\n", .{});
                     std.process.exit(1);
                 };
             }
@@ -252,4 +238,10 @@ fn printDebugInfo(args: *const cli.Args, stderr: anytype) !void {
         try stderr.print("Debug: provider={s}\n", .{p});
     }
     try stderr.print("\n", .{});
+}
+
+fn refreshStatus(allocator: std.mem.Allocator, status: *git.GitStatus, writer: anytype) !bool {
+    status.deinit();
+    status.* = try git.getStatus(allocator);
+    return git.printGitStatus(writer, status);
 }
