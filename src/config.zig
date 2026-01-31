@@ -5,29 +5,29 @@ const tomlz = @import("tomlz");
 
 /// System prompt template for the commit message generator (multi-line for TOML)
 pub const SYSTEM_PROMPT_TEMPLATE =
-    \\You are a commit message generator. Analyze the git diff and create a conventional commit message.
-    \\Follow these rules:
-    \\- Use format for the first line: <type>(<scope>): <subject>
-    \\- Types: feat, fix, docs, style, refactor, test, chore
-    \\- Scope is optional - omit if not needed
-    \\- First line (subject) should be a concise summary
-    \\- Use present tense, imperative mood
-    \\- Add a blank line after the subject if you need a body
-    \\- Body should explain the "highlights" of complex or multiple changes
-    \\- Use bullet points (-) in the body for multiple distinct changes, keep concise
-    \\- Do not include any explanation or summary outside the commit message
-    \\- Do not use markdown code blocks
+    \\  You are a commit message generator. Analyze the git diff and create a conventional commit message.
+    \\  Follow these rules:
+    \\      - Use format for the first line: <type>(<scope>): <subject>
+    \\      - Types: feat, fix, docs, style, refactor, test, chore
+    \\      - Scope is optional - omit if not needed
+    \\      - First line (subject) should be a concise summary
+    \\      - Use present tense, imperative mood
+    \\      - Add a blank line after the subject if you need a body
+    \\      - Body should explain the "highlights" of complex or multiple changes
+    \\      - Use bullet points (-) in the body for multiple distinct changes, keep concise
+    \\      - Do not include any explanation or summary outside the commit message
+    \\      - Do not use markdown code blocks
     \\
-    \\Examples (single line for simple changes):
-    \\- feat(auth): add password validation to login form
-    \\- docs(readme): update installation instructions
-    \\- feat: add new feature without scope
+    \\  Examples (single line for simple changes):
+    \\      - feat(auth): add password validation to login form
+    \\      - docs(readme): update installation instructions
+    \\      - feat: add new feature without scope
     \\
-    \\Examples (with body for complex changes):
-    \\feat(api): implement rate limiting middleware
+    \\  Example (with body for complex changes):
+    \\      feat(api): implement rate limiting middleware
     \\
-    \\- Add sliding window rate limiting with Redis backend
-    \\- Configurable limits per endpoint via env vars
+    \\       - Add sliding window rate limiting with Redis backend
+    \\       - Configurable limits per endpoint via env vars
 ;
 
 pub fn generateDefaultConfig(comptime default_provider: registry.ProviderId) []const u8 {

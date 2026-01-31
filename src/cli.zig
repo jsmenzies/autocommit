@@ -151,7 +151,7 @@ pub fn printConfigInfo(allocator: std.mem.Allocator, writer: anytype) !void {
 
     try writer.print("  Active Model: {s}{s}{s}\n", .{ Color.cyan, active_model, Color.reset });
 
-    try writer.print("  {s}System Prompt:{s}\n{s}{s}{s}\n", .{ Color.bold, Color.reset, Color.magenta, cfg.system_prompt, Color.reset });
+    try writer.print("  System Prompt:\n{s}{s}{s}", .{ Color.yellow, cfg.system_prompt, Color.reset });
 
     // Show provider info - iterate over registry for consistent ordering
     try writer.print("\n{s}Providers:{s}\n", .{ Color.bold, Color.reset });
@@ -175,15 +175,11 @@ pub fn printConfigInfo(allocator: std.mem.Allocator, writer: anytype) !void {
 
         // API Key with color coding
         if (api_set) {
-            try writer.print("    API Key: {s}✓ set{s}\n", .{ Color.green, Color.reset });
+            try writer.print("    API Key: {s}✓ set{s}\n\n", .{ Color.green, Color.reset });
         } else {
-            try writer.print("    API Key: {s}✗ not set{s}\n", .{ Color.red, Color.reset });
+            try writer.print("    API Key: {s}✗ not set{s}\n\n", .{ Color.red, Color.reset });
         }
     }
-
-    // Show system prompt
-    try writer.print("\n{s}System Prompt:{s}\n", .{ Color.bold, Color.reset });
-    try writer.print("{s}{s}{s}\n", .{ Color.yellow, cfg.system_prompt, Color.reset });
 }
 
 pub fn printConfigPath(allocator: std.mem.Allocator, writer: anytype) !void {
