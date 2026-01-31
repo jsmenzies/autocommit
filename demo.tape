@@ -1,9 +1,3 @@
-# VHS Demo for autocommit CLI tool
-# Prerequisites (run before vhs):
-#   1. zig build
-#   2. alias ac='autocommit --add --accept --push'
-# Generate with: vhs demo.tape
-
 Output demo.gif
 
 # Modern terminal setup matching Ghostty aesthetic
@@ -23,62 +17,38 @@ Set Theme "Argonaut"
 
 # Setup: ensure alias is set
 Hide
-Type "alias ac='autocommit --add --accept --push'" Sleep 100ms  Enter
-Type "alias autocommit='./zig-out/bin/autocommit'" Sleep 100ms  Enter
+Type "alias ac='autocommit --add --accept --push'" Enter
+Type "alias autocommit='./zig-out/bin/autocommit'" Enter
 Type "clear" Enter
 Show
 
-# Step 1: Show config
-Type "autocommit config show" Sleep 100ms Enter
-
-Sleep 4s
-
-Hide
-Type "clear" Enter
-Show
-# Step 2: Run autocommit interactively
 Type "autocommit" Sleep 100ms Enter
 
-Sleep 1500ms
+Sleep 2s
 
-# Respond to prompts
 Enter
-
-Sleep 3s
-
-# Show commit message generation
-Enter
-
-Sleep 1s
-
-Type "Y" Sleep 100ms Enter
 
 Sleep 2s
+
+Enter
+
+Sleep 2s
+
+Enter
+
+Sleep 4500ms
 
 # Step 3: Show the alias tip
-Type "clear" Sleep 100ms Enter
-Type "echo 'Pro Tip: Add this to your shell config:'" Sleep 100ms Enter
-Type "echo 'alias ac=autocommit --add --accept --push'" Sleep 100ms Enter
-
-Sleep 2s
+Ctrl+L
+Type "echo 'Quick automatic flow with ac alias'" Sleep 100ms Enter
+Type "echo 'alias ac=autocommit --add --accept --push'" Sleep 500ms Enter
 
 # Step 4: Quick demo with alias
-Type "clear && echo 'Quick workflow with ac alias' && echo 'Creating test.file...' && echo 'Test content' > test.file" Sleep 100ms Enter
-Type "git status --short" Sleep 100ms Enter
-
-Sleep 500ms
-
-Type "echo '' && echo '$ ac' && ac" Sleep 100ms Enter
-
-Sleep 4s
-
-# Show success
-Type "clear && echo 'Done! Committed and pushed automatically' && git log --oneline -1" Sleep 100ms Enter
-
+Sleep 1s
+Type "echo 'Remove unneeded go version from mise.toml'" Sleep 500ms Enter
+Type "sed -i '' '/^go = /d' mise.toml" Enter
 Sleep 1s
 
-# Final
-Type "echo '' && echo 'autocommit makes git commits effortless!'" Sleep 100ms Enter
+Type "ac" Enter
 
-Sleep 2s
-
+Sleep 7s

@@ -44,7 +44,7 @@ runs:
           mkdir -p $(dirname "$FORMULA")
           cat > "$FORMULA" << 'FORMULA_TEMPLATE'
         class Autocommit < Formula
-          desc "AI-powered conventional commit message generator"
+          desc "An ultra lightweight Zig CLI tool (~900KB) that analyzes Git history and generates conventional commit messages using LLM providers."
           homepage "https://github.com/${{ github.repository }}"
           version "VERSION_PLACEHOLDER"
           

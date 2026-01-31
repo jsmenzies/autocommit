@@ -1,22 +1,17 @@
-# AutoCommit (Zig Rewrite)
+# AutoCommit
 
-A CLI tool that analyzes Git history and generates conventional commit messages using LLM providers.
+An ultra lightweight Zig CLI tool (~900KB) that analyzes Git history and generates conventional commit messages using LLM providers.
 
-> **Status**: Work in progress - Zig rewrite at Stage 4 of migration
+![Demo](demo.gif)
 
-## Current Implementation Status
+## Features
 
-### ✅ Implemented
-- CLI argument parsing with help, version, and config commands
-- Configuration management (TOML-based)
-- Cross-platform config file paths (macOS/Linux)
-- GitHub CI/CD workflows (PR checks, releases)
-- Debug mode support
-- Git operations (diff, status, add, commit, push)
-- HTTP client for API calls
-- LLM provider implementations (z.ai, Groq)
-- Commit message generation with multiline support
-- Interactive prompts for adding files, committing, and pushing
+- **AI-Powered Commit Messages** - Automatically generates conventional commit messages from your git diffs using LLM providers (z.ai, Groq)
+- **Customizable System Prompt** - Edit the system prompt to customize how commit messages are generated (conventional commits, style, tone, etc.)
+- **Multiple LLM Providers** - Support for z.ai and Groq with easy provider switching
+- **Interactive Workflow** - Interactive prompts for staging files, reviewing commit messages, and pushing to remote
+- **Full Automation** - Optional flags for fully automated add, commit, and push workflow
+- **Cross-Platform** - Works on macOS and Linux
 
 ## Installation
 
@@ -140,25 +135,12 @@ If the `XDG_CONFIG_HOME` environment variable is set, the config will be stored 
 
 ### Generated Configuration
 
-When you run `autocommit config`, the tool automatically creates a default configuration file with the following structure:
+When you run `autocommit config`, the tool automatically creates a default configuration file with the following structure and inputs the default prompt
 
 ```toml
 default_provider = "zai"
 
-system_prompt = """
-You are a commit message generator. Analyze the git diff and create a conventional commit message.
-Follow these rules:
-- Use format for the first line: <type>(<scope>): <subject>
-- Types: feat, fix, docs, style, refactor, test, chore
-- Scope is optional - omit if not needed
-- First line (subject) should be a concise summary
-- Use present tense, imperative mood
-- Add a blank line after the subject if you need a body
-- Body should explain the "what" and "why" for complex or multiple changes
-- Use bullet points in the body for multiple distinct changes
-- Do not include any explanation outside the commit message
-- Do not use markdown code blocks
-"""
+system_prompt = ""
 
 [[providers]]
 name = "zai"
@@ -211,6 +193,8 @@ The prompt instructs the LLM to:
 - Add a body section for complex changes or when there are multiple distinct changes
 - Use bullet points in the body to describe what and why
 
+You can customize the system prompt in your config file to change how commit messages are generated.
+
 ### Configuration Options
 
 - `default_provider` - Which LLM provider to use (zai, groq)
@@ -218,10 +202,6 @@ The prompt instructs the LLM to:
 - `providers.{name}.api_key` - API key for the provider
 - `providers.{name}.model` - Model to use
 - `providers.{name}.endpoint` - API endpoint URL
-
-### Custom System Prompt
-
-You can customize the system prompt in your config file to change how commit messages are generated. The default prompt is optimized for conventional commits with support for multiline messages when needed.
 
 ## Build Commands
 
@@ -250,40 +230,6 @@ zig build -Dtarget=aarch64-macos -Doptimize=ReleaseSmall
 
 # Linux x86_64 (static)
 zig build -Dtarget=x86_64-linux-musl -Doptimize=ReleaseSmall
-```
-
-## Migration from Go
-
-This is a ground-up rewrite from Go to Zig with the following goals:
-- Smaller binaries (~200KB vs ~3MB)
-- Faster startup times
-- Simpler architecture (no TUI, file-based config)
-- Standard library only (minimal dependencies)
-
-See [MIGRATION_PLAN.md](./MIGRATION_PLAN.md) for detailed migration stages.
-
-## Default Prompt
-
-The default system prompt used for commit message generation:
-
-```
-You are a commit message generator. Analyze the git diff and create a conventional commit message.
-Follow these rules:
-- Use format: <type>(<scope>): <subject>
-- Types: feat, fix, docs, style, refactor, test, chore
-- Scope is optional - omit if not needed
-- Keep subject under 72 characters
-- Use present tense, imperative mood
-- Be specific but concise
-- Do not include any explanation, only output the commit message
-- Do not use markdown code blocks
-
-Examples:
-- feat(auth): add password validation to login form
-- fix(api): handle nil pointer in user service
-- docs(readme): update installation instructions
-- refactor(db): optimize query performance with index
-- feat: add new feature without scope
 ```
 
 ## License
