@@ -399,8 +399,6 @@ Use `std.process.getEnvVarOwned` to get HOME, then construct path.
 ```zig
 const Config = struct {
     default_provider: []const u8,
-    auto_add: bool,
-    auto_push: bool,
     system_prompt: []const u8,
     providers: Providers,
 };
@@ -434,8 +432,6 @@ const ProviderConfig = struct {
 ```json
 {
   "default_provider": "groq",
-  "auto_add": false,
-  "auto_push": false,
   "system_prompt": "You are a commit message generator. Analyze the git diff and create a conventional commit message following best practices.",
   "providers": {
     "zai": {

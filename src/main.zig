@@ -221,8 +221,13 @@ pub fn main() !void {
     try git.commit(allocator, commit_message);
     try stdout.print("{s}Committed successfully!{s}\n", .{ "\x1b[32m", "\x1b[0m" });
 
-    // Push if enabled via CLI flag
-    if (args.auto_push) {
+    // Push if enabled via CLI flag or user confirms
+    var should_push = args.auto_push;
+    if (!should_push) {
+        should_push = try confirmPush(stdout, stderr);
+    }
+
+    if (should_push) {
         try stdout.print("{s}Pushing...{s}\n", .{ "\x1b[32m", "\x1b[0m" });
         if (git.push(allocator)) {
             try stdout.print("{s}Pushed successfully!{s}\n", .{ "\x1b[32m", "\x1b[0m" });
@@ -282,5 +287,27 @@ fn confirmCommit(stdout: anytype, stderr: anytype) !bool {
     }
 
     // EOF - treat as abort
+    return false;
+}
+
+/// Ask user if they want to push - returns true to push, false to skip
+fn confirmPush(stdout: anytype, stderr: anytype) !bool {
+    const stdin = std.io.getStdIn().reader();
+
+    try stdout.print("\n{s}Push to remote?{s} [{s}y/N{s}] ", .{ "\x1b[1m", "\x1b[0m", "\x1b[32m", "\x1b[0m" });
+
+    var input_buffer: [10]u8 = undefined;
+    const input = stdin.readUntilDelimiterOrEof(&input_buffer, '\n') catch |err| {
+        try stderr.print("Error reading input: {s}\n", .{@errorName(err)});
+        return false;
+    };
+
+    if (input) |line| {
+        const choice = std.mem.trim(u8, line, " \r\t");
+        // Default to no (only 'y'/'Y' pushes)
+        return std.mem.eql(u8, choice, "y") or std.mem.eql(u8, choice, "Y");
+    }
+
+    // EOF - treat as no
     return false;
 }
