@@ -32,7 +32,6 @@ Show
 Type "autocommit config show" Sleep 100ms Enter
 
 Sleep 4s
-
 Hide
 Type "clear" Enter
 Show
@@ -51,20 +50,21 @@ Enter
 
 Sleep 1s
 
-Type "Y" Sleep 100ms Enter
+Enter
 
 Sleep 2s
 
 # Step 3: Show the alias tip
-Type "clear" Sleep 100ms Enter
-Type "echo 'Pro Tip: Add this to your shell config:'" Sleep 100ms Enter
-Type "echo 'alias ac=autocommit --add --accept --push'" Sleep 100ms Enter
-
-Sleep 2s
+Hide
+Type "clear" Enter
+Show
+Type "echo 'alias ac=autocommit --add --accept --push'" Sleep 500ms Enter
 
 # Step 4: Quick demo with alias
-Type "clear && echo 'Quick workflow with ac alias' && echo 'Creating test.file...' && echo 'Test content' > test.file" Sleep 100ms Enter
-Type "git status --short" Sleep 100ms Enter
+Hide
+Type "clear" Enter
+Show
+Type "echo 'Quick workflow with ac alias' && echo 'Creating test.file...' && echo 'Test content' > test.file" Sleep 100ms Enter
 
 Sleep 500ms
 
