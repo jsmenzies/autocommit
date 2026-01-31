@@ -208,7 +208,6 @@ pub fn main() !void {
 
     try stdout.print("\n{s}Generated commit message:{s}\n{s}\n", .{ "\x1b[1m", "\x1b[0m", commit_message });
 
-    // Handle confirmation
     if (!args.auto_accept) {
         const should_commit = try confirmCommit(stdout, stderr);
         if (!should_commit) {
@@ -220,25 +219,17 @@ pub fn main() !void {
         try stdout.print("\n{s}Auto-accept enabled, committing...{s}\n", .{ "\x1b[33m", "\x1b[0m" });
     }
 
-    // Commit the changes
     try stdout.print("\n{s}Committing...{s}\n", .{ "\x1b[32m", "\x1b[0m" });
     try git.commit(allocator, commit_message);
     try stdout.print("{s}Committed successfully!{s}\n", .{ "\x1b[32m", "\x1b[0m" });
 
-    // Push if enabled via CLI flag or user confirms
     var should_push = args.auto_push;
     if (args.debug) {
         try debug(stderr, "auto_push flag={}, should_push={}\n", .{ args.auto_push, should_push });
     }
 
     if (!should_push) {
-        if (args.debug) {
-            try debug(stderr, "Prompting for push confirmation\n", .{});
-        }
         should_push = try confirmPush(stdout, stderr);
-        if (args.debug) {
-            try debug(stderr, "Push confirmation result={}\n", .{should_push});
-        }
     } else if (args.debug) {
         try debug(stderr, "Auto-push enabled, skipping prompt\n", .{});
     }
