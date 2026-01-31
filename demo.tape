@@ -39,9 +39,7 @@ Enter
 Sleep 4500ms
 
 # Step 3: Show the alias tip
-Hide
-Type "clear" Enter
-Show
+Ctrl+L
 Type "echo 'Quick automatic flow with ac alias'" Sleep 100ms Enter
 Type "echo 'alias ac=autocommit --add --accept --push'" Sleep 500ms Enter
 
