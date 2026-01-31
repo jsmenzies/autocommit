@@ -88,7 +88,7 @@ pub fn main() !void {
     };
 
     if (args.debug) {
-        try debug(stderr, "Using provider={s}, model={s}\n", .{ provider_name, provider_cfg.model });
+        try debug(stderr, "provider={s}, model={s}\n", .{ provider_name, provider_cfg.model });
     }
 
     try stdout.print("\n", .{});
@@ -202,6 +202,10 @@ pub fn main() !void {
         std.process.exit(1);
     };
 
+    if (args.debug) {
+        try debug(stderr, "LLM raw response: {s}\n", .{commit_message});
+    }
+
     try stdout.print("\n{s}Generated commit message:{s}\n{s}\n", .{ "\x1b[1m", "\x1b[0m", commit_message });
 
     // Handle confirmation
@@ -273,7 +277,6 @@ fn printDebugInfo(args: *const cli.Args, stderr: anytype) !void {
     if (args.provider) |p| {
         try debug(stderr, "provider={s}\n", .{p});
     }
-    try stderr.print("\n", .{});
 }
 
 fn refreshStatus(allocator: std.mem.Allocator, status: *git.GitStatus, writer: anytype) !bool {
