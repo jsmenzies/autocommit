@@ -123,7 +123,7 @@ pub fn main() !void {
                 std.process.exit(1);
             };
         } else {
-            try stdout.print("\n{d} file(s) can be added. Add them? [Y/n] ", .{addable_count});
+            try stdout.print("\n{d} file(s) can be added. Add them? [{s}Y/n{s}] ", .{ addable_count, "\x1b[32m", "\x1b[0m" });
 
             var input_buffer: [10]u8 = undefined;
             const stdin = std.io.getStdIn().reader();
