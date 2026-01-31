@@ -1,1 +1,0 @@
-test: verify simplified confirmation flow works
