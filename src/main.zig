@@ -215,9 +215,8 @@ pub fn main() !void {
     try git.commit(allocator, commit_message);
     try stdout.print("{s}Committed successfully!{s}\n", .{ "\x1b[32m", "\x1b[0m" });
 
-    // Push if enabled (CLI flag overrides config)
-    const should_push = args.auto_push or cfg.auto_push;
-    if (should_push) {
+    // Push if enabled via CLI flag
+    if (args.auto_push) {
         try stdout.print("{s}Pushing...{s}\n", .{ "\x1b[32m", "\x1b[0m" });
         if (git.push(allocator)) {
             try stdout.print("{s}Pushed successfully!{s}\n", .{ "\x1b[32m", "\x1b[0m" });

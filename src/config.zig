@@ -39,7 +39,6 @@ fn generateDefaultConfigImpl(default_provider: registry.ProviderId) []const u8 {
     return std.fmt.comptimePrint(
         "{{\\n" ++
             "  \"default_provider\": \"{s}\",\\n" ++
-            "  \"auto_push\": false,\\n" ++
             "  \"providers\": {{\\n" ++
             "    \"zai\": {{\\n" ++
             "      \"api_key\": \"{s}\",\\n" ++
@@ -72,7 +71,6 @@ pub const DEFAULT_CONFIG = generateDefaultConfig(.zai);
 
 pub const Config = struct {
     default_provider: []const u8,
-    auto_push: bool,
     system_prompt: []const u8,
     providers: Providers,
 
@@ -230,16 +228,6 @@ fn parseConfig(allocator: std.mem.Allocator, content: []const u8) !Config {
     };
     errdefer allocator.free(default_provider);
 
-    // Parse optional auto_push (defaults to false)
-    const auto_push = blk: {
-        if (obj.get("auto_push")) |value| {
-            if (value == .bool) {
-                break :blk value.bool;
-            }
-        }
-        break :blk false;
-    };
-
     const system_prompt = try getStringField(allocator, obj, "system_prompt") orelse {
         return error.MissingSystemPrompt;
     };
@@ -259,7 +247,6 @@ fn parseConfig(allocator: std.mem.Allocator, content: []const u8) !Config {
 
     return Config{
         .default_provider = default_provider,
-        .auto_push = auto_push,
         .system_prompt = system_prompt,
         .providers = providers,
     };
@@ -513,110 +500,4 @@ test "validateConfig with valid API key" {
     defer config.deinit(std.testing.allocator);
 
     try validateConfig(&config, "zai");
-}
-
-test "parseConfig with auto_push true" {
-    const test_json =
-        \\{
-        \\  "default_provider": "zai",
-        \\  "auto_push": true,
-        \\  "system_prompt": "Test prompt",
-        \\  "providers": {
-        \\    "zai": {
-        \\      "api_key": "test-key",
-        \\      "model": "glm-4.7-Flash",
-        \\      "endpoint": "https://api.z.ai/v1"
-        \\    },
-        \\    "openai": {
-        \\      "api_key": "test-key",
-        \\      "model": "gpt-4",
-        \\      "endpoint": "https://api.openai.com/v1"
-        \\    },
-        \\    "groq": {
-        \\      "api_key": "test-key",
-        \\      "model": "llama-3",
-        \\      "endpoint": "https://api.groq.com/v1"
-        \\    }
-        \\  }
-        \\}
-    ;
-
-    var config = try parseConfig(std.testing.allocator, test_json);
-    defer config.deinit(std.testing.allocator);
-
-    try std.testing.expectEqualStrings("zai", config.default_provider);
-    try std.testing.expect(config.auto_push == true);
-}
-
-test "parseConfig with auto_push false" {
-    const test_json =
-        \\{
-        \\  "default_provider": "zai",
-        \\  "auto_push": false,
-        \\  "system_prompt": "Test prompt",
-        \\  "providers": {
-        \\    "zai": {
-        \\      "api_key": "test-key",
-        \\      "model": "glm-4.7-Flash",
-        \\      "endpoint": "https://api.z.ai/v1"
-        \\    },
-        \\    "openai": {
-        \\      "api_key": "test-key",
-        \\      "model": "gpt-4",
-        \\      "endpoint": "https://api.openai.com/v1"
-        \\    },
-        \\    "groq": {
-        \\      "api_key": "test-key",
-        \\      "model": "llama-3",
-        \\      "endpoint": "https://api.groq.com/v1"
-        \\    }
-        \\  }
-        \\}
-    ;
-
-    var config = try parseConfig(std.testing.allocator, test_json);
-    defer config.deinit(std.testing.allocator);
-
-    try std.testing.expect(config.auto_push == false);
-}
-
-test "parseConfig without auto_push defaults to false" {
-    const test_json =
-        \\{
-        \\  "default_provider": "zai",
-        \\  "system_prompt": "Test prompt",
-        \\  "providers": {
-        \\    "zai": {
-        \\      "api_key": "test-key",
-        \\      "model": "glm-4.7-Flash",
-        \\      "endpoint": "https://api.z.ai/v1"
-        \\    },
-        \\    "openai": {
-        \\      "api_key": "test-key",
-        \\      "model": "gpt-4",
-        \\      "endpoint": "https://api.openai.com/v1"
-        \\    },
-        \\    "groq": {
-        \\      "api_key": "test-key",
-        \\      "model": "llama-3",
-        \\      "endpoint": "https://api.groq.com/v1"
-        \\    }
-        \\  }
-        \\}
-    ;
-
-    var config = try parseConfig(std.testing.allocator, test_json);
-    defer config.deinit(std.testing.allocator);
-
-    try std.testing.expect(config.auto_push == false);
-}
-
-test "generateDefaultConfig produces valid JSON with auto_push" {
-    const config_json = generateDefaultConfig(.zai);
-    // Verify it contains expected fields
-    try std.testing.expect(std.mem.indexOf(u8, config_json, "default_provider") != null);
-    try std.testing.expect(std.mem.indexOf(u8, config_json, "zai") != null);
-    try std.testing.expect(std.mem.indexOf(u8, config_json, "api_key") != null);
-    try std.testing.expect(std.mem.indexOf(u8, config_json, "system_prompt") != null);
-    try std.testing.expect(std.mem.indexOf(u8, config_json, "auto_push") != null);
 }
