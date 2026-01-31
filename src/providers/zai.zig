@@ -1,6 +1,15 @@
 const std = @import("std");
 const llm = @import("../llm.zig");
 
+/// Provider metadata exported for registry
+pub const metadata = .{
+    .name = "zai",
+    .display_name = "Z AI",
+    .default_model = "glm-4.7-Flash",
+    .endpoint = "https://api.z.ai/api/paas/v4/chat/completions",
+    .api_key_placeholder = "paste-key-here",
+};
+
 const Message = struct {
     role: []const u8,
     content: []const u8,
@@ -40,34 +49,51 @@ fn buildRequest(provider: llm.Provider, diff: []const u8, prompt: []const u8) ![
     });
 }
 
-fn parseResponse(_: llm.Provider, response: []const u8) llm.LlmError![]const u8 {
-    // Parse the JSON response
-    var parsed = std.json.parseFromSlice(std.json.Value, std.heap.page_allocator, response, .{}) catch {
+fn parseResponse(provider: llm.Provider, response: []const u8) llm.LlmError![]const u8 {
+    const allocator = provider.allocator;
+
+    // Parse the JSON response using the provider's allocator
+    var parsed = std.json.parseFromSlice(std.json.Value, allocator, response, .{}) catch {
         return llm.LlmError.InvalidResponse;
     };
     defer parsed.deinit();
 
     const root = parsed.value;
 
+    // Validate root is an object before accessing
+    if (root != .object) {
+        return llm.LlmError.InvalidResponse;
+    }
+
     // Check for error response
     if (root.object.get("error")) |error_obj| {
-        if (error_obj.object.get("message")) |msg| {
-            const error_message = msg.string;
-            if (std.mem.indexOf(u8, error_message, "rate limit") != null) {
-                return llm.LlmError.RateLimited;
+        if (error_obj == .object) {
+            if (error_obj.object.get("message")) |msg| {
+                if (msg == .string) {
+                    const error_message = msg.string;
+                    if (std.mem.indexOf(u8, error_message, "rate limit") != null) {
+                        return llm.LlmError.RateLimited;
+                    }
+                }
+                return llm.LlmError.ApiError;
             }
-            return llm.LlmError.ApiError;
         }
         return llm.LlmError.ApiError;
     }
 
     // Extract content from choices[0].message.content
     const choices = root.object.get("choices") orelse return llm.LlmError.InvalidResponse;
+    if (choices != .array) return llm.LlmError.InvalidResponse;
     if (choices.array.items.len == 0) return llm.LlmError.EmptyContent;
 
     const first_choice = choices.array.items[0];
+    if (first_choice != .object) return llm.LlmError.InvalidResponse;
+
     const message = first_choice.object.get("message") orelse return llm.LlmError.InvalidResponse;
+    if (message != .object) return llm.LlmError.InvalidResponse;
+
     const content = message.object.get("content") orelse return llm.LlmError.InvalidResponse;
+    if (content != .string) return llm.LlmError.InvalidResponse;
 
     const content_str = content.string;
     if (content_str.len == 0) return llm.LlmError.EmptyContent;
@@ -76,7 +102,10 @@ fn parseResponse(_: llm.Provider, response: []const u8) llm.LlmError![]const u8 
     const trimmed = std.mem.trim(u8, content_str, " \n\r\t");
     if (trimmed.len == 0) return llm.LlmError.EmptyContent;
 
-    return trimmed;
+    // Allocate a copy of the trimmed content using the provider's allocator
+    return allocator.dupe(u8, trimmed) catch |err| switch (err) {
+        error.OutOfMemory => return llm.LlmError.OutOfMemory,
+    };
 }
 
 fn getEndpoint(provider: llm.Provider) []const u8 {

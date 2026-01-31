@@ -13,7 +13,6 @@ pub fn main() !void {
     const stdout = std.io.getStdOut().writer();
     const stderr = std.io.getStdErr().writer();
 
-    // Parse arguments (handles --help and --version as special errors)
     const args = cli.parse(allocator) catch |err| {
         switch (err) {
             error.HelpRequested => {
@@ -28,16 +27,13 @@ pub fn main() !void {
                 try stderr.print("Error: --provider requires a provider name\n", .{});
                 std.process.exit(1);
             },
-            error.MissingModelValue => {
-                try stderr.print("Error: --model requires a model name\n", .{});
-                std.process.exit(1);
-            },
             else => {
                 try stderr.print("Error parsing arguments: {s}\n", .{@errorName(err)});
                 std.process.exit(1);
             },
         }
     };
+
     defer cli.free(&args, allocator);
 
     // Handle debug logging of flags
@@ -51,9 +47,6 @@ pub fn main() !void {
         try stderr.print("Debug: auto_accept={}\n", .{args.auto_accept});
         if (args.provider) |p| {
             try stderr.print("Debug: provider={s}\n", .{p});
-        }
-        if (args.model) |m| {
-            try stderr.print("Debug: model={s}\n", .{m});
         }
         try stderr.print("\n", .{});
     }
@@ -95,22 +88,22 @@ pub fn main() !void {
     // Determine provider and model (CLI overrides config)
     const provider_name = args.provider orelse cfg.default_provider;
 
-    // Get provider config based on name
-    const provider_cfg = if (std.mem.eql(u8, provider_name, "zai"))
-        cfg.providers.zai
-    else if (std.mem.eql(u8, provider_name, "openai"))
-        cfg.providers.openai
-    else if (std.mem.eql(u8, provider_name, "groq"))
-        cfg.providers.groq
-    else {
-        try stderr.print("Unknown provider: {s}\n", .{provider_name});
-        std.process.exit(1);
+    // Get provider config based on name using registry lookup
+    const provider_cfg = cfg.getProvider(provider_name) catch |err| {
+        switch (err) {
+            error.UnknownProvider => {
+                try stderr.print("Unknown provider: {s}\n", .{provider_name});
+                std.process.exit(1);
+            },
+            else => {
+                try stderr.print("Error getting provider config: {s}\n", .{@errorName(err)});
+                std.process.exit(1);
+            },
+        }
     };
 
-    const model_name = args.model orelse provider_cfg.model;
-
     if (args.debug) {
-        try stderr.print("Debug: Using provider={s}, model={s}\n", .{ provider_name, model_name });
+        try stderr.print("Debug: Using provider={s}, model={s}\n", .{ provider_name, provider_cfg.model });
     }
 
     // Print a blank line before starting CLI output for easier reading

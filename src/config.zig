@@ -1,5 +1,63 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const registry = @import("providers/registry.zig");
+const zai_provider = @import("providers/zai.zig");
+
+/// System prompt template for the commit message generator
+pub const SYSTEM_PROMPT_TEMPLATE =
+    \\You are a commit message generator. Analyze the git diff and create a conventional commit message.
+    \\Follow these rules:
+    \\- Use format: <type>(<scope>): <subject>
+    \\- Types: feat, fix, docs, style, refactor, test, chore
+    \\- Scope is optional - omit if not needed
+    \\- Keep subject under 72 characters
+    \\- Use present tense, imperative mood
+    \\- Be specific but concise
+    \\- Do not include any explanation, only output the commit message
+    \\- Do not use markdown code blocks
+    \\ 
+    \\Examples:
+    \\- feat(auth): add password validation to login form
+    \\- fix(api): handle nil pointer in user service
+    \\- docs(readme): update installation instructions
+    \\- refactor(db): optimize query performance with index
+    \\- feat: add new feature without scope
+;
+
+/// Generate the default configuration JSON at comptime
+/// Uses zai provider metadata from registry
+pub fn generateDefaultConfig(default_provider: registry.ProviderId) []const u8 {
+    return comptime generateDefaultConfigImpl(default_provider);
+}
+
+fn generateDefaultConfigImpl(default_provider: registry.ProviderId) []const u8 {
+    // Get zai provider metadata directly
+    const zai_metadata = zai_provider.metadata;
+
+    return std.fmt.comptimePrint(
+        "{{\\n" ++
+            "  \"default_provider\": \"{s}\",\\n" ++
+            "  \"providers\": {{\\n" ++
+            "    \"zai\": {{\\n" ++
+            "      \"api_key\": \"{s}\",\\n" ++
+            "      \"model\": \"{s}\",\\n" ++
+            "      \"endpoint\": \"{s}\"\\n" ++
+            "    }}\\n" ++
+            "  }},\\n" ++
+            "  \"system_prompt\": \"{s}\"\\n" ++
+            "}}",
+        .{
+            default_provider.name(),
+            zai_metadata.api_key_placeholder,
+            zai_metadata.default_model,
+            zai_metadata.endpoint,
+            SYSTEM_PROMPT_TEMPLATE,
+        },
+    );
+}
+
+/// Default configuration template
+pub const DEFAULT_CONFIG = generateDefaultConfig(.zai);
 
 pub const Config = struct {
     default_provider: []const u8,
@@ -10,6 +68,11 @@ pub const Config = struct {
         allocator.free(self.default_provider);
         allocator.free(self.system_prompt);
         self.providers.deinit(allocator);
+    }
+
+    pub fn getProvider(self: *const Config, name: []const u8) !*const ProviderConfig {
+        const id = registry.ProviderId.fromString(name) orelse return error.UnknownProvider;
+        return self.providers.get(id);
     }
 };
 
@@ -22,6 +85,12 @@ pub const Providers = struct {
         self.zai.deinit(allocator);
         self.openai.deinit(allocator);
         self.groq.deinit(allocator);
+    }
+
+    pub fn get(self: *const Providers, id: registry.ProviderId) *const ProviderConfig {
+        return switch (id) {
+            .zai => &self.zai,
+        };
     }
 };
 
@@ -74,32 +143,6 @@ pub fn ensureConfigDir(allocator: std.mem.Allocator) !void {
         }
     };
 }
-
-/// Default configuration template
-pub const DEFAULT_CONFIG =
-    \\{
-    \\  "default_provider": "groq",
-    \\  "system_prompt": "You are a commit message generator. Analyze the git diff and create a conventional commit message.\nFollow these rules:\n- Use format: <type>(<scope>): <subject>\n- Types: feat, fix, docs, style, refactor, test, chore\n- Scope is optional - omit if not needed\n- Keep subject under 72 characters\n- Use present tense, imperative mood\n- Be specific but concise\n- Do not include any explanation, only output the commit message\n- Do not use markdown code blocks\n\nExamples:\n- feat(auth): add password validation to login form\n- fix(api): handle nil pointer in user service\n- docs(readme): update installation instructions\n- refactor(db): optimize query performance with index\n- feat: add new feature without scope",
-    \\  "providers": {
-    \\    "zai": {
-    \\      "api_key": "your-zai-api-key-here",
-    \\      "model": "glm-4.7-Flash",
-    \\      "endpoint": "https://api.z.ai/api/paas/v4/chat/completions"
-    \\    },
-    \\    "openai": {
-    \\      "api_key": "your-openai-api-key-here",
-    \\      "model": "gpt-4o-mini",
-    \\      "endpoint": "https://api.openai.com/v1/chat/completions"
-    \\    },
-    \\    "groq": {
-    \\      "api_key": "your-groq-api-key-here",
-    \\      "model": "llama-3.1-8b-instant",
-    \\      "endpoint": "https://api.groq.com/openai/v1/chat/completions"
-    \\    }
-    \\  }
-    \\}
-    \\
-;
 
 /// Create default config file if it doesn't exist
 pub fn createDefaultConfig(allocator: std.mem.Allocator, path: []const u8) !void {
@@ -446,4 +489,13 @@ test "validateConfig with valid API key" {
     defer config.deinit(std.testing.allocator);
 
     try validateConfig(&config, "zai");
+}
+
+test "generateDefaultConfig produces valid JSON" {
+    const config_json = generateDefaultConfig(.zai);
+    // Verify it contains expected fields
+    try std.testing.expect(std.mem.indexOf(u8, config_json, "default_provider") != null);
+    try std.testing.expect(std.mem.indexOf(u8, config_json, "zai") != null);
+    try std.testing.expect(std.mem.indexOf(u8, config_json, "api_key") != null);
+    try std.testing.expect(std.mem.indexOf(u8, config_json, "system_prompt") != null);
 }

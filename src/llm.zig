@@ -1,6 +1,7 @@
 const std = @import("std");
 const http_client = @import("http_client.zig");
 const config = @import("config.zig");
+const registry = @import("providers/registry.zig");
 
 pub const LlmError = error{
     InvalidApiKey,
@@ -88,18 +89,7 @@ pub fn destroyProvider(provider: *Provider, allocator: std.mem.Allocator) void {
 }
 
 fn getVtable(name: []const u8) !*const Provider.VTable {
-    if (std.mem.eql(u8, name, "zai")) {
-        return &@import("providers/zai.zig").vtable;
-    }
-    // Future providers go here:
-    // if (std.mem.eql(u8, name, "openai")) {
-    //     return &@import("providers/openai.zig").vtable;
-    // }
-    // if (std.mem.eql(u8, name, "groq")) {
-    //     return &@import("providers/groq.zig").vtable;
-    // }
-
-    return error.UnknownProvider;
+    return registry.getVtable(name);
 }
 
 test "Provider vtable lookup" {
