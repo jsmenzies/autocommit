@@ -294,7 +294,7 @@ fn confirmCommit(stdout: anytype, stderr: anytype) !bool {
 fn confirmPush(stdout: anytype, stderr: anytype) !bool {
     const stdin = std.io.getStdIn().reader();
 
-    try stdout.print("\n{s}Push to remote?{s} [{s}y/N{s}] ", .{ "\x1b[1m", "\x1b[0m", "\x1b[32m", "\x1b[0m" });
+    try stdout.print("\n{s}Push to remote?{s} [{s}Y/n{s}] ", .{ "\x1b[1m", "\x1b[0m", "\x1b[32m", "\x1b[0m" });
 
     var input_buffer: [10]u8 = undefined;
     const input = stdin.readUntilDelimiterOrEof(&input_buffer, '\n') catch |err| {
@@ -304,10 +304,10 @@ fn confirmPush(stdout: anytype, stderr: anytype) !bool {
 
     if (input) |line| {
         const choice = std.mem.trim(u8, line, " \r\t");
-        // Default to no (only 'y'/'Y' pushes)
-        return std.mem.eql(u8, choice, "y") or std.mem.eql(u8, choice, "Y");
+        // Default to yes (empty or 'y'/'Y')
+        return choice.len == 0 or std.mem.eql(u8, choice, "y") or std.mem.eql(u8, choice, "Y");
     }
 
-    // EOF - treat as no
-    return false;
+    // EOF - treat as yes (push by default)
+    return true;
 }
