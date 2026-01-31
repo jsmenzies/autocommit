@@ -184,23 +184,6 @@ pub fn printConfigInfo(allocator: std.mem.Allocator, writer: anytype) !void {
     // Show system prompt
     try writer.print("\n{s}System Prompt:{s}\n", .{ Color.bold, Color.reset });
     try writer.print("{s}{s}{s}\n", .{ Color.yellow, cfg.system_prompt, Color.reset });
-
-    // Show active configuration (what will be used for commits)
-    try writer.print("\n{s}Active Configuration:{s}\n", .{ Color.bold, Color.reset });
-
-    // Find active provider and its config
-    var active_provider_display: []const u8 = cfg.default_provider;
-    var active_model: []const u8 = undefined;
-    for (providers) |p| {
-        if (std.mem.eql(u8, cfg.default_provider, p.name)) {
-            active_provider_display = p.display_name;
-            active_model = p.cfg.model;
-            break;
-        }
-    }
-
-    try writer.print("  Provider: {s}{s}{s}\n", .{ Color.cyan, active_provider_display, Color.reset });
-    try writer.print("  Model: {s}{s}{s}\n", .{ Color.cyan, active_model, Color.reset });
 }
 
 pub fn printConfigPath(allocator: std.mem.Allocator, writer: anytype) !void {

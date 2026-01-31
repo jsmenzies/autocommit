@@ -232,12 +232,12 @@ pub fn main() !void {
 
     if (should_push) {
         try stdout.print("{s}Pushing...{s}\n", .{ Color.green, Color.reset });
-        git.push(allocator) catch |err| {
+        if (git.push(allocator)) {
+            try stdout.print("{s}Pushed successfully!{s}\n", .{ Color.green, Color.reset });
+        } else |err| {
             try stderr.print("{s}Warning: Push failed: {s}{s}\n", .{ Color.yellow, @errorName(err), Color.reset });
             // Don't exit - commit succeeded, just push failed
-            return;
-        };
-        try stdout.print("{s}Pushed successfully!{s}\n", .{ Color.green, Color.reset });
+        }
     } else if (args.debug) {
         try colors.debug(stderr, "Push skipped\n", .{});
     }
