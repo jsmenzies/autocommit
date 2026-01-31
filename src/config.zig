@@ -76,7 +76,7 @@ pub fn generateDefaultConfig(comptime default_provider: registry.ProviderId) []c
 }
 
 /// Default configuration template
-pub const DEFAULT_CONFIG = generateDefaultConfig(.zai);
+pub const DEFAULT_CONFIG = generateDefaultConfig(.groq);
 
 pub const Config = struct {
     default_provider: []const u8,
