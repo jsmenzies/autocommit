@@ -215,11 +215,16 @@ pub fn main() !void {
     try git.commit(allocator, commit_message);
     try stdout.print("{s}Committed successfully!{s}\n", .{ "\x1b[32m", "\x1b[0m" });
 
-    // Push if enabled
-    if (args.auto_push) {
+    // Push if enabled (CLI flag overrides config)
+    const should_push = args.auto_push or cfg.auto_push;
+    if (should_push) {
         try stdout.print("{s}Pushing...{s}\n", .{ "\x1b[32m", "\x1b[0m" });
-        try git.push(allocator);
-        try stdout.print("{s}Pushed successfully!{s}\n", .{ "\x1b[32m", "\x1b[0m" });
+        if (git.push(allocator)) {
+            try stdout.print("{s}Pushed successfully!{s}\n", .{ "\x1b[32m", "\x1b[0m" });
+        } else |err| {
+            try stderr.print("{s}Warning: Push failed: {s}{s}\n", .{ "\x1b[33m", @errorName(err), "\x1b[0m" });
+            // Don't exit - commit succeeded, just push failed
+        }
     }
 
     allocator.free(commit_message);
