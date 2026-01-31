@@ -29,14 +29,12 @@ pub const Provider = struct {
     };
 
     pub fn generateCommitMessage(self: Provider, diff: []const u8, system_prompt: []const u8) LlmError![]const u8 {
-        // Build request body
         const request_body = self.vtable.buildRequest(self, diff, system_prompt) catch |err| {
             std.log.err("Failed to build request: {s}", .{@errorName(err)});
             return LlmError.OutOfMemory;
         };
         defer self.allocator.free(request_body);
 
-        // Get endpoint and auth header
         const endpoint = self.vtable.getEndpoint(self);
         const auth_header = self.vtable.getAuthHeader(self) catch |err| {
             std.log.err("Failed to build auth header: {s}", .{@errorName(err)});
@@ -44,14 +42,12 @@ pub const Provider = struct {
         };
         defer self.allocator.free(auth_header);
 
-        // Make HTTP request
         const response_body = self.http.postJson(endpoint, auth_header, request_body) catch |err| {
             std.log.err("HTTP request failed: {s}", .{@errorName(err)});
             return mapHttpError(err);
         };
         defer self.allocator.free(response_body);
 
-        // Parse response
         return self.vtable.parseResponse(self, response_body);
     }
 };

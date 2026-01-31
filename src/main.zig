@@ -5,7 +5,6 @@ const git = @import("git.zig");
 const http_client = @import("http_client.zig");
 const llm = @import("llm.zig");
 
-/// Print a debug message with "Debug:" prefix in yellow
 pub fn debug(writer: anytype, comptime fmt: []const u8, args: anytype) !void {
     try writer.print("{s}Debug:{s} " ++ fmt, .{ "\x1b[33m", "\x1b[0m" } ++ args);
 }
@@ -206,7 +205,7 @@ pub fn main() !void {
         try debug(stderr, "LLM raw response: {s}\n", .{commit_message});
     }
 
-    try stdout.print("\n{s}Generated commit message:{s}\n{s}\n", .{ "\x1b[1m", "\x1b[0m", commit_message });
+    try stdout.print("\n{s}Generated commit message:{s}\n{s}{s}{s}\n", .{ "\x1b[1m", "\x1b[0m", "\x1b[36m", commit_message, "\x1b[0m" });
 
     if (!args.auto_accept) {
         const should_commit = try confirmCommit(stdout, stderr);
