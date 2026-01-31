@@ -223,8 +223,20 @@ pub fn main() !void {
 
     // Push if enabled via CLI flag or user confirms
     var should_push = args.auto_push;
+    if (args.debug) {
+        try debug(stderr, "auto_push flag={}, should_push={}\n", .{ args.auto_push, should_push });
+    }
+
     if (!should_push) {
+        if (args.debug) {
+            try debug(stderr, "Prompting for push confirmation\n", .{});
+        }
         should_push = try confirmPush(stdout, stderr);
+        if (args.debug) {
+            try debug(stderr, "Push confirmation result={}\n", .{should_push});
+        }
+    } else if (args.debug) {
+        try debug(stderr, "Auto-push enabled, skipping prompt\n", .{});
     }
 
     if (should_push) {
@@ -235,6 +247,8 @@ pub fn main() !void {
             try stderr.print("{s}Warning: Push failed: {s}{s}\n", .{ "\x1b[33m", @errorName(err), "\x1b[0m" });
             // Don't exit - commit succeeded, just push failed
         }
+    } else if (args.debug) {
+        try debug(stderr, "Push skipped\n", .{});
     }
 
     allocator.free(commit_message);
