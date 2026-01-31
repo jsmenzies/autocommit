@@ -232,12 +232,12 @@ pub fn main() !void {
 
     if (should_push) {
         try stdout.print("{s}Pushing...{s}\n", .{ Color.green, Color.reset });
-        if (git.push(allocator)) {
-            try stdout.print("{s}Pushed successfully!{s}\n", .{ Color.green, Color.reset });
-        } else |err| {
+        git.push(allocator) catch |err| {
             try stderr.print("{s}Warning: Push failed: {s}{s}\n", .{ Color.yellow, @errorName(err), Color.reset });
             // Don't exit - commit succeeded, just push failed
-        }
+            return;
+        };
+        try stdout.print("{s}Pushed successfully!{s}\n", .{ Color.green, Color.reset });
     } else if (args.debug) {
         try colors.debug(stderr, "Push skipped\n", .{});
     }
@@ -273,7 +273,7 @@ fn refreshStatus(allocator: std.mem.Allocator, status: *git.GitStatus, writer: a
 }
 
 /// Generic Y/n confirmation prompt
-/// Returns true for yes (empty, y, Y), false for no (n, N, error, EOF)
+/// Returns true for yes (empty, y, Y), false for no (n, N, error), and `default_on_eof` on EOF
 fn confirmYesNo(
     stdout: anytype,
     stderr: anytype,

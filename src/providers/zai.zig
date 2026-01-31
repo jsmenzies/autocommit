@@ -1,4 +1,3 @@
-const llm = @import("../llm.zig");
 const openai_compat = @import("openai_compat.zig");
 
 pub const metadata = .{

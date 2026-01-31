@@ -34,7 +34,7 @@ Type "autocommit config show" Sleep 100ms Enter
 Sleep 4s
 
 Hide
-Type "Clear" Enter
+Type "clear" Enter
 Show
 # Step 2: Run autocommit interactively
 Type "autocommit" Sleep 100ms Enter

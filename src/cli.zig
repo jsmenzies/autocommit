@@ -100,6 +100,12 @@ fn checkApiKeySet(api_key: []const u8) bool {
     return !std.mem.eql(u8, api_key, API_KEY_PLACEHOLDER);
 }
 
+/// Check if API key is the placeholder value (for validation)
+pub fn isApiKeyPlaceholder(api_key: []const u8) bool {
+    if (api_key.len == 0) return true;
+    return std.mem.eql(u8, api_key, API_KEY_PLACEHOLDER);
+}
+
 pub fn printConfigInfo(allocator: std.mem.Allocator, writer: anytype) !void {
     // Get config path
     const config_path = config.getConfigPath(allocator) catch |err| {
@@ -246,7 +252,7 @@ pub fn printHelp(writer: anytype) !void {
         \\  --add               Auto-add all unstaged files before committing
         \\  --push              Auto-push after committing
         \\  --accept            Auto-accept generated commit message without prompting
-        \\  --provider <name>   Override provider (zai, openai, groq)
+        \\  --provider <name>   Override provider (zai, groq)
         \\  --debug             Enable debug output
         \\  --version           Show version information
         \\  --help              Show this help message

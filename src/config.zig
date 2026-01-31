@@ -222,11 +222,12 @@ fn parseConfig(allocator: std.mem.Allocator, content: []const u8) !Config {
     const parsed = try tomlz.decode(Config, arena_allocator, content);
 
     // Successfully parsed - now copy data to caller's allocator
-    const config = Config{
+    var config = Config{
         .default_provider = try allocator.dupe(u8, parsed.default_provider),
         .system_prompt = try allocator.dupe(u8, parsed.system_prompt),
         .providers = try allocator.alloc(ProviderConfig, parsed.providers.len),
     };
+    errdefer config.deinit(allocator);
 
     // Copy providers
     for (parsed.providers, 0..) |provider, i| {

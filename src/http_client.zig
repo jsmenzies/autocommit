@@ -31,7 +31,7 @@ pub const HttpClient = struct {
         url: []const u8,
         auth_header: ?[]const u8,
         body: []const u8,
-    ) ![]const u8 {
+    ) HttpError![]const u8 {
         // Parse URL
         const uri = std.Uri.parse(url) catch return HttpError.InvalidUrl;
 

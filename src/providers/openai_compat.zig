@@ -45,14 +45,61 @@ pub fn parseResponse(provider: llm.Provider, response: []const u8) llm.LlmError!
 
     if (root.object.get("error")) |error_obj| {
         if (error_obj == .object) {
-            if (error_obj.object.get("message")) |msg| {
+            const error_map = error_obj.object;
+
+            // Check for structured auth-related indicators first
+            var is_auth_error = false;
+            if (error_map.get("code")) |code_val| {
+                if (code_val == .string) {
+                    const code_str = code_val.string;
+                    if (std.mem.eql(u8, code_str, "invalid_api_key") or
+                        std.mem.eql(u8, code_str, "unauthorized"))
+                    {
+                        is_auth_error = true;
+                    }
+                }
+            }
+            if (!is_auth_error) {
+                if (error_map.get("status")) |status_val| {
+                    if (status_val == .integer) {
+                        const status_int = status_val.integer;
+                        if (status_int == 401 or status_int == 403) {
+                            is_auth_error = true;
+                        }
+                    }
+                }
+            }
+
+            if (error_map.get("message")) |msg| {
                 if (msg == .string) {
                     const error_message = msg.string;
+
+                    // Rate limit errors take precedence
                     if (std.mem.indexOf(u8, error_message, "rate limit") != null) {
                         return llm.LlmError.RateLimited;
                     }
+
+                    // Check for auth errors in message
+                    if (std.mem.indexOf(u8, error_message, "invalid api key") != null or
+                        std.mem.indexOf(u8, error_message, "Invalid API key") != null or
+                        std.mem.indexOf(u8, error_message, "Incorrect API key") != null or
+                        std.mem.indexOf(u8, error_message, "unauthorized") != null or
+                        std.mem.indexOf(u8, error_message, "Unauthorized") != null)
+                    {
+                        return llm.LlmError.InvalidApiKey;
+                    }
                 }
+
+                // If we identified auth error from structured fields
+                if (is_auth_error) {
+                    return llm.LlmError.InvalidApiKey;
+                }
+
                 return llm.LlmError.ApiError;
+            }
+
+            if (is_auth_error) {
+                return llm.LlmError.InvalidApiKey;
             }
         }
         return llm.LlmError.ApiError;
