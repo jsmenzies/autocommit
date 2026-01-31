@@ -28,15 +28,11 @@ Sleep 2s
 
 Enter
 
-Sleep 3s
+Sleep 2s
 
 Enter
 
-Sleep 3s
-
-Enter
-
-Sleep 4s
+Sleep 7s
 
 # Step 3: Show the alias tip
 Hide
@@ -46,6 +42,10 @@ Type "echo 'alias ac=autocommit --add --accept --push'" Sleep 500ms Enter
 
 # Step 4: Quick demo with alias
 Type "echo 'Quick workflow with ac alias" Sleep 100ms Enter
+Sleep 1s
 Type "touch test.file" Sleep 100ms Enter
+Sleep 1s
 
 Type "ac" Enter
+
+Sleep 8s

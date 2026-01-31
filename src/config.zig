@@ -14,15 +14,13 @@ pub const SYSTEM_PROMPT_TEMPLATE =
     \\- Use present tense, imperative mood
     \\- Add a blank line after the subject if you need a body
     \\- Body should explain the "what" and "why" for complex or multiple changes
-    \\- Use bullet points in the body for multiple distinct changes
+    \\- Use bullet points (-) in the body for multiple distinct changes
     \\- Do not include any explanation outside the commit message
     \\- Do not use markdown code blocks
     \\
     \\Examples (single line for simple changes):
     \\- feat(auth): add password validation to login form
-    \\- fix(api): handle nil pointer in user service
     \\- docs(readme): update installation instructions
-    \\- refactor(db): optimize query performance with index
     \\- feat: add new feature without scope
     \\
     \\Examples (with body for complex changes):
