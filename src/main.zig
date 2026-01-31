@@ -174,36 +174,41 @@ pub fn main() !void {
     defer allocator.free(truncated_diff);
 
     // Generate commit message
-    var commit_message: []const u8 = undefined;
-    var needs_regeneration = true;
-
-    while (needs_regeneration) {
-        if (args.debug) {
-            try stderr.print("Debug: Generating commit message...\n", .{});
-        }
-
-        commit_message = provider.generateCommitMessage(truncated_diff, cfg.system_prompt) catch |err| {
-            const error_message = switch (err) {
-                llm.LlmError.InvalidApiKey => "Invalid API key. Check your config file.",
-                llm.LlmError.RateLimited => "Rate limit exceeded. Please try again later.",
-                llm.LlmError.ServerError => "Server error. Please try again later.",
-                llm.LlmError.Timeout => "Request timed out. Check your internet connection.",
-                llm.LlmError.InvalidResponse => "Invalid response from API.",
-                llm.LlmError.EmptyContent => "LLM returned empty message.",
-                llm.LlmError.ApiError => "API error occurred.",
-                llm.LlmError.OutOfMemory => "Out of memory.",
-            };
-            if (args.debug) {
-                try stderr.print("Debug: LLM error: {s}\n", .{@errorName(err)});
-            }
-            try stderr.print("Error: {s}\n", .{error_message});
-            std.process.exit(1);
-        };
-
-        needs_regeneration = false;
+    if (args.debug) {
+        try stderr.print("Debug: Generating commit message...\n", .{});
     }
 
+    const commit_message = provider.generateCommitMessage(truncated_diff, cfg.system_prompt) catch |err| {
+        const error_message = switch (err) {
+            llm.LlmError.InvalidApiKey => "Invalid API key. Check your config file.",
+            llm.LlmError.RateLimited => "Rate limit exceeded. Please try again later.",
+            llm.LlmError.ServerError => "Server error. Please try again later.",
+            llm.LlmError.Timeout => "Request timed out. Check your internet connection.",
+            llm.LlmError.InvalidResponse => "Invalid response from API.",
+            llm.LlmError.EmptyContent => "LLM returned empty message.",
+            llm.LlmError.ApiError => "API error occurred.",
+            llm.LlmError.OutOfMemory => "Out of memory.",
+        };
+        if (args.debug) {
+            try stderr.print("Debug: LLM error: {s}\n", .{@errorName(err)});
+        }
+        try stderr.print("Error: {s}\n", .{error_message});
+        std.process.exit(1);
+    };
+
     try stdout.print("\n{s}Generated commit message:{s}\n{s}\n", .{ "\x1b[1m", "\x1b[0m", commit_message });
+
+    // Handle confirmation
+    if (!args.auto_accept) {
+        const should_commit = try confirmCommit(stdout, stderr);
+        if (!should_commit) {
+            allocator.free(commit_message);
+            try stdout.print("\n{s}Aborted, no commit made.{s}\n", .{ "\x1b[33m", "\x1b[0m" });
+            std.process.exit(0);
+        }
+    } else {
+        try stdout.print("\n{s}Auto-accept enabled, committing...{s}\n", .{ "\x1b[33m", "\x1b[0m" });
+    }
 
     // Commit the changes
     try stdout.print("\n{s}Committing...{s}\n", .{ "\x1b[32m", "\x1b[0m" });
@@ -246,4 +251,26 @@ fn refreshStatus(allocator: std.mem.Allocator, status: *git.GitStatus, writer: a
     status.deinit();
     status.* = try git.getStatus(allocator);
     return git.printGitStatus(writer, status);
+}
+
+/// Simple confirmation prompt - returns true to commit, false to abort
+fn confirmCommit(stdout: anytype, stderr: anytype) !bool {
+    const stdin = std.io.getStdIn().reader();
+
+    try stdout.print("\n{s}Proceed with commit?{s} [{s}Y/n{s}] ", .{ "\x1b[1m", "\x1b[0m", "\x1b[32m", "\x1b[0m" });
+
+    var input_buffer: [10]u8 = undefined;
+    const input = stdin.readUntilDelimiterOrEof(&input_buffer, '\n') catch |err| {
+        try stderr.print("Error reading input: {s}\n", .{@errorName(err)});
+        return false;
+    };
+
+    if (input) |line| {
+        const choice = std.mem.trim(u8, line, " \r\t");
+        // Default to yes (empty or 'y'/'Y')
+        return choice.len == 0 or std.mem.eql(u8, choice, "y") or std.mem.eql(u8, choice, "Y");
+    }
+
+    // EOF - treat as abort
+    return false;
 }
