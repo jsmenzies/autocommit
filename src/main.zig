@@ -2,6 +2,8 @@ const std = @import("std");
 const cli = @import("cli.zig");
 const config = @import("config.zig");
 const git = @import("git.zig");
+const http_client = @import("http_client.zig");
+const llm = @import("llm.zig");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -202,16 +204,180 @@ pub fn main() !void {
         std.process.exit(0);
     }
 
-    // TODO: Implement commit message generation
-    // For now, just indicate what would happen
-    if (args.auto_accept) {
-        try stdout.print("\n{s}Auto-accept enabled - would commit without prompting{s}\n", .{ "\x1b[32m", "\x1b[0m" });
-    } else {
-        try stdout.print("\nWould prompt for commit message confirmation...\n", .{});
+    // Initialize HTTP client for LLM API calls
+    var http = http_client.HttpClient.init(allocator);
+    defer http.deinit();
+
+    // Create LLM provider
+    var provider = llm.createProvider(allocator, provider_name, provider_cfg, &http) catch |err| {
+        try stderr.print("Failed to create provider: {s}\n", .{@errorName(err)});
+        std.process.exit(1);
+    };
+    defer llm.destroyProvider(&provider, allocator);
+
+    // Get staged diff
+    const diff = try getStagedDiff(allocator);
+    defer allocator.free(diff);
+
+    if (args.debug) {
+        try stderr.print("Debug: Diff size: {d} bytes\n", .{diff.len});
     }
 
+    // Truncate diff if too large (over 100KB)
+    const max_diff_size = 100 * 1024;
+    const truncated_diff = if (diff.len > max_diff_size)
+        try std.fmt.allocPrint(allocator, "{s}\n... (truncated)", .{diff[0..max_diff_size]})
+    else
+        try allocator.dupe(u8, diff);
+    defer allocator.free(truncated_diff);
+
+    // Generate commit message
+    var commit_message: []const u8 = undefined;
+    var needs_regeneration = true;
+
+    while (needs_regeneration) {
+        if (args.debug) {
+            try stderr.print("Debug: Generating commit message...\n", .{});
+        }
+
+        commit_message = provider.generateCommitMessage(truncated_diff, cfg.system_prompt) catch |err| {
+            const error_message = switch (err) {
+                llm.LlmError.InvalidApiKey => "Invalid API key. Check your config file.",
+                llm.LlmError.RateLimited => "Rate limit exceeded. Please try again later.",
+                llm.LlmError.ServerError => "Server error. Please try again later.",
+                llm.LlmError.Timeout => "Request timed out. Check your internet connection.",
+                llm.LlmError.InvalidResponse => "Invalid response from API.",
+                llm.LlmError.EmptyContent => "LLM returned empty message.",
+                llm.LlmError.ApiError => "API error occurred.",
+                llm.LlmError.OutOfMemory => "Out of memory.",
+            };
+            if (args.debug) {
+                try stderr.print("Debug: LLM error: {s}\n", .{@errorName(err)});
+            }
+            try stderr.print("Error: {s}\n", .{error_message});
+            std.process.exit(1);
+        };
+
+        needs_regeneration = false;
+
+        // Auto-accept or show interactive prompt
+        if (!args.auto_accept) {
+            try stdout.print("\n{s}Suggested commit message:{s}\n", .{ "\x1b[1m\x1b[36m", "\x1b[0m" });
+            try stdout.print("  {s}\n", .{commit_message});
+            try stdout.print("\nOptions:\n", .{});
+            try stdout.print("  [enter] Commit\n", .{});
+            try stdout.print("  [r]     Regenerate\n", .{});
+            try stdout.print("  [e]     Edit message\n", .{});
+            try stdout.print("  [q]     Quit\n", .{});
+            try stdout.print("\nChoice: ", .{});
+
+            var input_buffer: [10]u8 = undefined;
+            const stdin = std.io.getStdIn().reader();
+            const input = stdin.readUntilDelimiterOrEof(&input_buffer, '\n') catch null;
+
+            if (input) |line| {
+                const trimmed = std.mem.trim(u8, line, " \r\t");
+                if (std.mem.eql(u8, trimmed, "r") or std.mem.eql(u8, trimmed, "R")) {
+                    needs_regeneration = true;
+                    allocator.free(commit_message);
+                    continue;
+                } else if (std.mem.eql(u8, trimmed, "e") or std.mem.eql(u8, trimmed, "E")) {
+                    // Edit mode
+                    try stdout.print("Enter new message (press Enter twice to finish):\n", .{});
+                    var edited_message = std.ArrayList(u8).init(allocator);
+                    defer edited_message.deinit();
+
+                    var empty_line_count: u8 = 0;
+                    var edit_buffer: [256]u8 = undefined;
+                    while (empty_line_count < 2) {
+                        const edit_line = stdin.readUntilDelimiterOrEof(&edit_buffer, '\n') catch break;
+                        if (edit_line) |el| {
+                            const edit_trimmed = std.mem.trim(u8, el, " \r\t");
+                            if (edit_trimmed.len == 0) {
+                                empty_line_count += 1;
+                                if (empty_line_count == 2) break;
+                            } else {
+                                empty_line_count = 0;
+                                if (edited_message.items.len > 0) {
+                                    try edited_message.append('\n');
+                                }
+                                try edited_message.appendSlice(edit_trimmed);
+                            }
+                        } else {
+                            break;
+                        }
+                    }
+
+                    if (edited_message.items.len > 0) {
+                        allocator.free(commit_message);
+                        commit_message = try allocator.dupe(u8, edited_message.items);
+                    }
+                } else if (std.mem.eql(u8, trimmed, "q") or std.mem.eql(u8, trimmed, "Q")) {
+                    try stdout.print("Aborted.\n", .{});
+                    std.process.exit(0);
+                }
+                // Empty or anything else commits
+            }
+        }
+    }
+
+    // Commit the changes
+    try stdout.print("\n{s}Committing...{s}\n", .{ "\x1b[32m", "\x1b[0m" });
+    try commitChanges(allocator, commit_message);
+    try stdout.print("{s}Committed successfully!{s}\n", .{ "\x1b[32m", "\x1b[0m" });
+
+    // Push if enabled
     if (args.auto_push) {
-        try stdout.print("{s}Auto-push enabled - would push after commit{s}\n", .{ "\x1b[32m", "\x1b[0m" });
+        try stdout.print("{s}Pushing...{s}\n", .{ "\x1b[32m", "\x1b[0m" });
+        try pushChanges(allocator);
+        try stdout.print("{s}Pushed successfully!{s}\n", .{ "\x1b[32m", "\x1b[0m" });
+    }
+
+    allocator.free(commit_message);
+}
+
+fn getStagedDiff(allocator: std.mem.Allocator) ![]const u8 {
+    const result = std.process.Child.run(.{
+        .allocator = allocator,
+        .argv = &[_][]const u8{ "git", "diff", "--cached" },
+        .max_output_bytes = 10 * 1024 * 1024, // 10MB max
+    }) catch return error.GitCommandFailed;
+
+    if (result.term.Exited != 0) {
+        allocator.free(result.stdout);
+        allocator.free(result.stderr);
+        return error.GitCommandFailed;
+    }
+
+    allocator.free(result.stderr);
+    return result.stdout;
+}
+
+fn commitChanges(allocator: std.mem.Allocator, message: []const u8) !void {
+    const result = std.process.Child.run(.{
+        .allocator = allocator,
+        .argv = &[_][]const u8{ "git", "commit", "-m", message },
+        .max_output_bytes = 10 * 1024,
+    }) catch return error.GitCommandFailed;
+    defer allocator.free(result.stdout);
+    defer allocator.free(result.stderr);
+
+    if (result.term.Exited != 0) {
+        return error.GitCommandFailed;
+    }
+}
+
+fn pushChanges(allocator: std.mem.Allocator) !void {
+    const result = std.process.Child.run(.{
+        .allocator = allocator,
+        .argv = &[_][]const u8{ "git", "push" },
+        .max_output_bytes = 10 * 1024,
+    }) catch return error.GitCommandFailed;
+    defer allocator.free(result.stdout);
+    defer allocator.free(result.stderr);
+
+    if (result.term.Exited != 0) {
+        return error.GitCommandFailed;
     }
 }
 
@@ -219,4 +385,6 @@ test {
     _ = @import("cli.zig");
     _ = @import("config.zig");
     _ = @import("git.zig");
+    _ = @import("http_client.zig");
+    _ = @import("llm.zig");
 }
