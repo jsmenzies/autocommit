@@ -199,18 +199,13 @@ pub fn printConfigInfo(allocator: std.mem.Allocator, writer: anytype) !void {
     };
     defer cfg.deinit(allocator);
 
-    try writer.print("\n{s}Current Settings:{s}\n", .{ Color.bold, Color.reset });
-    try writer.print("  Default Provider: {s}{s}{s}\n", .{ Color.cyan, cfg.default_provider, Color.reset });
-
-    try writer.print("  {s}System Prompt:{s}\n{s}{s}{s}\n", .{ Color.bold, Color.reset, Color.magenta, cfg.system_prompt, Color.reset });
-
     // Show provider info
     try writer.print("\n{s}Providers:{s}\n", .{ Color.bold, Color.reset });
 
-    const providers = [_]struct { name: []const u8, cfg: config.ProviderConfig }{
-        .{ .name = "zai", .cfg = cfg.providers.zai },
-        .{ .name = "openai", .cfg = cfg.providers.openai },
-        .{ .name = "groq", .cfg = cfg.providers.groq },
+    const providers = [_]struct { name: []const u8, display_name: []const u8, cfg: config.ProviderConfig }{
+        .{ .name = "zai", .display_name = "Z.ai", .cfg = cfg.providers.zai },
+        .{ .name = "openai", .display_name = "OpenAI", .cfg = cfg.providers.openai },
+        .{ .name = "groq", .display_name = "Groq", .cfg = cfg.providers.groq },
     };
 
     for (providers) |p| {
@@ -219,11 +214,11 @@ pub fn printConfigInfo(allocator: std.mem.Allocator, writer: anytype) !void {
         // Check if API key is set (not a placeholder and not empty)
         const api_set = checkApiKeySet(p.name, p.cfg.api_key);
 
-        // Provider name with default marker in yellow
+        // Provider name - default in cyan, others in gray
         if (is_default) {
-            try writer.print("  {s}{s}{s} {s}(default){s}:\n", .{ Color.cyan, p.name, Color.reset, Color.yellow, Color.reset });
+            try writer.print("  {s}{s}{s}:\n", .{ Color.cyan, p.display_name, Color.reset });
         } else {
-            try writer.print("  {s}{s}{s}:\n", .{ Color.gray, p.name, Color.reset });
+            try writer.print("  {s}{s}{s}:\n", .{ Color.gray, p.display_name, Color.reset });
         }
 
         // Model (always shown in normal color)
@@ -236,6 +231,27 @@ pub fn printConfigInfo(allocator: std.mem.Allocator, writer: anytype) !void {
             try writer.print("    API Key: {s}✗ not set{s}\n", .{ Color.red, Color.reset });
         }
     }
+
+    // Show system prompt
+    try writer.print("\n{s}System Prompt:{s}\n", .{ Color.bold, Color.reset });
+    try writer.print("{s}{s}{s}\n", .{ Color.yellow, cfg.system_prompt, Color.reset });
+
+    // Show active configuration (what will be used for commits)
+    try writer.print("\n{s}Active Configuration:{s}\n", .{ Color.bold, Color.reset });
+
+    // Find active provider and its config
+    var active_provider_display: []const u8 = cfg.default_provider;
+    var active_model: []const u8 = undefined;
+    for (providers) |p| {
+        if (std.mem.eql(u8, cfg.default_provider, p.name)) {
+            active_provider_display = p.display_name;
+            active_model = p.cfg.model;
+            break;
+        }
+    }
+
+    try writer.print("  Provider: {s}{s}{s}\n", .{ Color.cyan, active_provider_display, Color.reset });
+    try writer.print("  Model: {s}{s}{s}\n", .{ Color.cyan, active_model, Color.reset });
 }
 
 pub fn printConfigPath(allocator: std.mem.Allocator, writer: anytype) !void {
