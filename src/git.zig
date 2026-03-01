@@ -375,6 +375,98 @@ pub fn addAll(allocator: std.mem.Allocator) !void {
     }
 }
 
+pub fn getStagedFiles(allocator: std.mem.Allocator) !std.ArrayList([]const u8) {
+    const result = std.process.Child.run(.{
+        .allocator = allocator,
+        .argv = &[_][]const u8{ "git", "diff", "--cached", "--name-only" },
+        .max_output_bytes = 10 * 1024 * 1024,
+    }) catch return error.GitCommandFailed;
+    defer allocator.free(result.stderr);
+
+    if (result.term.Exited != 0) {
+        allocator.free(result.stdout);
+        return error.GitCommandFailed;
+    }
+
+    var files = std.ArrayList([]const u8).init(allocator);
+    errdefer {
+        for (files.items) |item| {
+            allocator.free(item);
+        }
+        files.deinit();
+    }
+
+    var lines = std.mem.splitScalar(u8, result.stdout, '\n');
+    while (lines.next()) |line| {
+        if (line.len == 0) continue;
+        const path = try allocator.dupe(u8, line);
+        try files.append(path);
+    }
+
+    allocator.free(result.stdout);
+    return files;
+}
+
+pub fn unstageFiles(allocator: std.mem.Allocator, files: []const []const u8) !void {
+    if (files.len == 0) return;
+
+    var argv = std.ArrayList([]const u8).init(allocator);
+    defer argv.deinit();
+
+    try argv.append("git");
+    try argv.append("reset");
+    try argv.append("HEAD");
+    try argv.append("--");
+
+    for (files) |file| {
+        try argv.append(file);
+    }
+
+    const result = std.process.Child.run(.{
+        .allocator = allocator,
+        .argv = argv.items,
+        .max_output_bytes = 1024,
+    }) catch return error.GitCommandFailed;
+    defer allocator.free(result.stdout);
+    defer allocator.free(result.stderr);
+
+    if (result.term.Exited != 0) {
+        return error.GitCommandFailed;
+    }
+}
+
+pub fn calculateNewlyStaged(
+    allocator: std.mem.Allocator,
+    before: std.ArrayList([]const u8),
+    after: std.ArrayList([]const u8),
+) !std.ArrayList([]const u8) {
+    var newly_staged = std.ArrayList([]const u8).init(allocator);
+    errdefer {
+        for (newly_staged.items) |item| {
+            allocator.free(item);
+        }
+        newly_staged.deinit();
+    }
+
+    // Build a hash set of before files for O(1) lookup
+    var before_set = std.StringHashMap(void).init(allocator);
+    defer before_set.deinit();
+
+    for (before.items) |file| {
+        try before_set.put(file, {});
+    }
+
+    // Check each file in after list
+    for (after.items) |file| {
+        if (!before_set.contains(file)) {
+            const path = try allocator.dupe(u8, file);
+            try newly_staged.append(path);
+        }
+    }
+
+    return newly_staged;
+}
+
 pub fn getStagedDiff(allocator: std.mem.Allocator) ![]const u8 {
     const result = std.process.Child.run(.{
         .allocator = allocator,

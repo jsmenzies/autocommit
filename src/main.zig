@@ -114,10 +114,37 @@ pub fn main() !void {
         std.process.exit(0);
     }
 
+    var cli_staged_files: std.ArrayList([]const u8) = .{
+        .items = &.{},
+        .capacity = 0,
+        .allocator = allocator,
+    };
+    var tracked_cli_staged = false;
+    defer {
+        if (tracked_cli_staged) {
+            for (cli_staged_files.items) |item| {
+                allocator.free(item);
+            }
+            cli_staged_files.deinit();
+        }
+    }
+
     const addable_count = git.unstagedAndUntrackedCount(&status);
     if (addable_count > 0) {
         if (args.auto_add) {
             try stdout.print("\n{s}Auto-adding {d} file(s)...{s}\n", .{ Color.green, addable_count, Color.reset });
+
+            const original_staged = git.getStagedFiles(allocator) catch {
+                try stderr.print("Failed to get original staged files\n", .{});
+                std.process.exit(1);
+            };
+            defer {
+                for (original_staged.items) |item| {
+                    allocator.free(item);
+                }
+                original_staged.deinit();
+            }
+
             git.addAll(allocator) catch {
                 try stderr.print("Failed to add files\n", .{});
                 std.process.exit(1);
@@ -128,6 +155,23 @@ pub fn main() !void {
                 try stderr.print("Failed to refresh git status\n", .{});
                 std.process.exit(1);
             };
+
+            const new_staged = git.getStagedFiles(allocator) catch {
+                try stderr.print("Failed to get staged files after add\n", .{});
+                std.process.exit(1);
+            };
+            defer {
+                for (new_staged.items) |item| {
+                    allocator.free(item);
+                }
+                new_staged.deinit();
+            }
+
+            cli_staged_files = git.calculateNewlyStaged(allocator, original_staged, new_staged) catch {
+                try stderr.print("Failed to calculate newly staged files\n", .{});
+                std.process.exit(1);
+            };
+            tracked_cli_staged = true;
         } else {
             var prompt_buf: [64]u8 = undefined;
             const prompt = try std.fmt.bufPrint(&prompt_buf, "\n{d} file(s) can be added. Add them?", .{addable_count});
@@ -135,6 +179,18 @@ pub fn main() !void {
 
             if (should_add) {
                 try stdout.print("{s}Adding {d} file(s)...{s}\n", .{ Color.green, addable_count, Color.reset });
+
+                const original_staged = git.getStagedFiles(allocator) catch {
+                    try stderr.print("Failed to get original staged files\n", .{});
+                    std.process.exit(1);
+                };
+                defer {
+                    for (original_staged.items) |item| {
+                        allocator.free(item);
+                    }
+                    original_staged.deinit();
+                }
+
                 git.addAll(allocator) catch {
                     try stderr.print("Failed to add files\n", .{});
                     std.process.exit(1);
@@ -145,6 +201,23 @@ pub fn main() !void {
                     try stderr.print("Failed to refresh git status\n", .{});
                     std.process.exit(1);
                 };
+
+                const new_staged = git.getStagedFiles(allocator) catch {
+                    try stderr.print("Failed to get staged files after add\n", .{});
+                    std.process.exit(1);
+                };
+                defer {
+                    for (new_staged.items) |item| {
+                        allocator.free(item);
+                    }
+                    new_staged.deinit();
+                }
+
+                cli_staged_files = git.calculateNewlyStaged(allocator, original_staged, new_staged) catch {
+                    try stderr.print("Failed to calculate newly staged files\n", .{});
+                    std.process.exit(1);
+                };
+                tracked_cli_staged = true;
             }
         }
     }
@@ -203,11 +276,26 @@ pub fn main() !void {
     if (!args.auto_accept) {
         var commit_prompt_buf: [64]u8 = undefined;
         const commit_prompt = try std.fmt.bufPrint(&commit_prompt_buf, "\n{s}Proceed with commit?{s}", .{ Color.bold, Color.reset });
-        const should_commit = try confirmYesNo(stdout, stderr, commit_prompt, false);
-        if (!should_commit) {
-            allocator.free(commit_message);
-            try stdout.print("\n{s}Aborted, no commit made.{s}\n", .{ Color.yellow, Color.reset });
-            std.process.exit(0);
+        const action = try promptCommitAction(stdout, stderr, commit_prompt, cli_staged_files.items.len > 0);
+
+        switch (action) {
+            .commit => {}, // Continue to commit
+            .decline => {
+                allocator.free(commit_message);
+                try stdout.print("\n{s}Aborted, no commit made.{s}\n", .{ Color.yellow, Color.reset });
+                std.process.exit(0);
+            },
+            .unstage_and_decline => {
+                if (cli_staged_files.items.len > 0) {
+                    try stdout.print("\n{s}Unstaging {d} file(s)...{s}\n", .{ Color.yellow, cli_staged_files.items.len, Color.reset });
+                    git.unstageFiles(allocator, cli_staged_files.items) catch {
+                        try stderr.print("{s}Warning: Failed to unstage files{s}\n", .{ Color.yellow, Color.reset });
+                    };
+                }
+                allocator.free(commit_message);
+                try stdout.print("\n{s}Aborted, files unstaged.{s}\n", .{ Color.yellow, Color.reset });
+                std.process.exit(0);
+            },
         }
     } else {
         try stdout.print("\n{s}Auto-accept enabled, committing...{s}\n", .{ Color.yellow, Color.reset });
@@ -251,6 +339,49 @@ test {
     _ = @import("git.zig");
     _ = @import("http_client.zig");
     _ = @import("llm.zig");
+}
+
+const CommitAction = enum {
+    commit,
+    decline,
+    unstage_and_decline,
+};
+
+fn promptCommitAction(
+    stdout: anytype,
+    stderr: anytype,
+    prompt: []const u8,
+    has_cli_staged_files: bool,
+) !CommitAction {
+    if (has_cli_staged_files) {
+        try stdout.print("{s} [{s}c{s}]ommit/[{s}d{s}]ecline/[{s}u{s}]nstage added files and decline: ", .{
+            prompt, Color.green, Color.reset, Color.yellow, Color.reset, Color.red, Color.reset,
+        });
+    } else {
+        try stdout.print("{s} [{s}c{s}]ommit/[{s}d{s}]ecline: ", .{
+            prompt, Color.green, Color.reset, Color.yellow, Color.reset,
+        });
+    }
+
+    var input_buffer: [10]u8 = undefined;
+    const stdin = std.io.getStdIn().reader();
+    const input = stdin.readUntilDelimiterOrEof(&input_buffer, '\n') catch |err| {
+        try stderr.print("Error reading input: {s}\n", .{@errorName(err)});
+        return .decline;
+    };
+
+    if (input) |line| {
+        const choice = std.mem.trim(u8, line, " \r\t");
+        if (choice.len == 0 or std.mem.eql(u8, choice, "c") or std.mem.eql(u8, choice, "C")) {
+            return .commit;
+        } else if (std.mem.eql(u8, choice, "u") or std.mem.eql(u8, choice, "U")) {
+            return .unstage_and_decline;
+        } else {
+            return .decline;
+        }
+    }
+
+    return .commit;
 }
 
 fn printDebugInfo(args: *const cli.Args, stderr: anytype) !void {
