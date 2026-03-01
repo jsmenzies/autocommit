@@ -13,7 +13,7 @@ pub const SYSTEM_PROMPT_TEMPLATE =
     \\      - First line (subject) should be a concise summary
     \\      - Use present tense, imperative mood
     \\      - Add a blank line after the subject if you need a body
-    \\      - Body should explain the "highlights" of complex or multiple changes
+    \\      - Body should explain the "highlights" ONLY if changes are significant and varied
     \\      - Use bullet points (-) in the body for multiple distinct changes, keep concise
     \\      - CRITICAL: Return ONLY the commit message itself
     \\      - NO suggestions, notes, or commentary after the commit message
