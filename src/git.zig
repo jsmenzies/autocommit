@@ -303,6 +303,9 @@ pub fn getStatus(allocator: std.mem.Allocator) !GitStatus {
     defer allocator.free(result.stderr);
 
     if (result.term.Exited != 0) {
+        if (result.stderr.len > 0) {
+            std.log.err("git status failed: {s}", .{result.stderr});
+        }
         return error.GitCommandFailed;
     }
 
@@ -371,6 +374,9 @@ pub fn addAll(allocator: std.mem.Allocator) !void {
     defer allocator.free(result.stderr);
 
     if (result.term.Exited != 0) {
+        if (result.stderr.len > 0) {
+            std.log.err("git add failed: {s}", .{result.stderr});
+        }
         return error.GitCommandFailed;
     }
 }
@@ -384,6 +390,9 @@ pub fn getStagedFiles(allocator: std.mem.Allocator) !std.ArrayList([]const u8) {
     defer allocator.free(result.stderr);
 
     if (result.term.Exited != 0) {
+        if (result.stderr.len > 0) {
+            std.log.err("git diff failed: {s}", .{result.stderr});
+        }
         allocator.free(result.stdout);
         return error.GitCommandFailed;
     }
@@ -431,6 +440,9 @@ pub fn unstageFiles(allocator: std.mem.Allocator, files: []const []const u8) !vo
     defer allocator.free(result.stderr);
 
     if (result.term.Exited != 0) {
+        if (result.stderr.len > 0) {
+            std.log.err("git reset failed: {s}", .{result.stderr});
+        }
         return error.GitCommandFailed;
     }
 }
@@ -475,6 +487,9 @@ pub fn getStagedDiff(allocator: std.mem.Allocator) ![]const u8 {
     }) catch return error.GitCommandFailed;
 
     if (result.term.Exited != 0) {
+        if (result.stderr.len > 0) {
+            std.log.err("git diff failed: {s}", .{result.stderr});
+        }
         allocator.free(result.stdout);
         allocator.free(result.stderr);
         return error.GitCommandFailed;
@@ -494,6 +509,9 @@ pub fn commit(allocator: std.mem.Allocator, message: []const u8) !void {
     defer allocator.free(result.stderr);
 
     if (result.term.Exited != 0) {
+        if (result.stderr.len > 0) {
+            std.log.err("git commit failed: {s}", .{result.stderr});
+        }
         return error.GitCommandFailed;
     }
 }
@@ -508,6 +526,9 @@ pub fn push(allocator: std.mem.Allocator) !void {
     defer allocator.free(result.stderr);
 
     if (result.term.Exited != 0) {
+        if (result.stderr.len > 0) {
+            std.log.err("git push failed: {s}", .{result.stderr});
+        }
         return error.GitCommandFailed;
     }
 }
