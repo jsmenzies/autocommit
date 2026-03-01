@@ -134,7 +134,45 @@ pub fn getEndpoint(provider: llm.Provider) []const u8 {
 }
 
 pub fn getAuthHeader(provider: llm.Provider) ![]const u8 {
-    return try std.fmt.allocPrint(provider.allocator, "Bearer {s}", .{provider.config.api_key});
+    const api_key = provider.config.api_key;
+
+    // Check if api_key uses env: prefix
+    if (std.mem.startsWith(u8, api_key, "env:")) {
+        const env_var_name = api_key[4..]; // Skip "env:" prefix
+
+        provider.logDebug("Using environment variable for API key: {s}", .{env_var_name});
+
+        // Look up environment variable
+        const env_value = std.process.getEnvVarOwned(provider.allocator, env_var_name) catch |err| {
+            switch (err) {
+                error.EnvironmentVariableNotFound => {
+                    std.log.err("Environment variable '{s}' not found", .{env_var_name});
+                    return error.InvalidApiKey;
+                },
+                else => return error.OutOfMemory,
+            }
+        };
+
+        // Trim whitespace and check if empty
+        const trimmed = std.mem.trim(u8, env_value, " \t\n\r");
+        if (trimmed.len == 0) {
+            std.log.err("Environment variable '{s}' is empty", .{env_var_name});
+            provider.allocator.free(env_value);
+            return error.InvalidApiKey;
+        }
+
+        // If trimmed is same as env_value, use it directly; otherwise duplicate trimmed
+        if (trimmed.ptr == env_value.ptr and trimmed.len == env_value.len) {
+            return try std.fmt.allocPrint(provider.allocator, "Bearer {s}", .{env_value});
+        } else {
+            const result = try std.fmt.allocPrint(provider.allocator, "Bearer {s}", .{trimmed});
+            provider.allocator.free(env_value);
+            return result;
+        }
+    }
+
+    // Regular api_key (from config file)
+    return try std.fmt.allocPrint(provider.allocator, "Bearer {s}", .{api_key});
 }
 
 pub fn makeVTable() llm.Provider.VTable {

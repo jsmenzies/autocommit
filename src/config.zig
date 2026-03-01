@@ -246,6 +246,11 @@ pub fn validateConfig(config: *const Config, provider_name: []const u8) !void {
     const provider = config.getProvider(provider_name) catch return error.UnknownProvider;
     const metadata = registry.getByName(provider_name) orelse return error.UnknownProvider;
 
+    // Skip validation if api_key uses env: prefix - will be resolved at runtime
+    if (std.mem.startsWith(u8, provider.api_key, "env:")) {
+        return;
+    }
+
     // Skip placeholder check for custom provider - user provides their own placeholder
     if (std.mem.eql(u8, provider_name, "custom")) {
         // Still check if API key is completely empty

@@ -29,10 +29,10 @@ pub const Provider = struct {
         buildRequest: *const fn (self: Provider, diff: []const u8, prompt: []const u8) std.mem.Allocator.Error![]const u8,
         parseResponse: *const fn (self: Provider, response: []const u8) LlmError![]const u8,
         getEndpoint: *const fn (self: Provider) []const u8,
-        getAuthHeader: *const fn (self: Provider) std.mem.Allocator.Error![]const u8,
+        getAuthHeader: *const fn (self: Provider) (std.mem.Allocator.Error || error{InvalidApiKey})![]const u8,
     };
 
-    fn logDebug(self: Provider, comptime fmt: []const u8, args: anytype) void {
+    pub fn logDebug(self: Provider, comptime fmt: []const u8, args: anytype) void {
         if (self.debug_log) |log_fn| {
             var buf: [2048]u8 = undefined;
             const msg = std.fmt.bufPrint(&buf, fmt, args) catch |err| {
@@ -57,7 +57,10 @@ pub const Provider = struct {
         const endpoint = self.vtable.getEndpoint(self);
         const auth_header = self.vtable.getAuthHeader(self) catch |err| {
             std.log.err("Failed to build auth header: {s}", .{@errorName(err)});
-            return LlmError.OutOfMemory;
+            return switch (err) {
+                error.InvalidApiKey => LlmError.InvalidApiKey,
+                error.OutOfMemory => LlmError.OutOfMemory,
+            };
         };
         defer self.allocator.free(auth_header);
 
