@@ -7,6 +7,46 @@ pub const GitError = error{
     OutOfMemory,
 };
 
+/// Result from running a git command
+const GitCommandResult = struct {
+    stdout: []const u8,
+    stderr: []const u8,
+
+    pub fn deinit(self: GitCommandResult, allocator: std.mem.Allocator) void {
+        allocator.free(self.stdout);
+        allocator.free(self.stderr);
+    }
+};
+
+/// Run a git command and return the result. Caller must call result.deinit(allocator).
+/// Logs stderr on failure for better debugging.
+fn runGitCommand(
+    allocator: std.mem.Allocator,
+    command_name: []const u8,
+    argv: []const []const u8,
+    max_output_bytes: usize,
+) GitError!GitCommandResult {
+    const result = std.process.Child.run(.{
+        .allocator = allocator,
+        .argv = argv,
+        .max_output_bytes = max_output_bytes,
+    }) catch return error.GitCommandFailed;
+
+    if (result.term.Exited != 0) {
+        if (result.stderr.len > 0) {
+            std.log.err("git {s} failed: {s}", .{ command_name, result.stderr });
+        }
+        allocator.free(result.stdout);
+        allocator.free(result.stderr);
+        return error.GitCommandFailed;
+    }
+
+    return .{
+        .stdout = result.stdout,
+        .stderr = result.stderr,
+    };
+}
+
 pub const FileStatus = enum(u8) {
     unmodified = '.',
     modified = 'M',
@@ -294,20 +334,8 @@ pub fn isRepo() bool {
 }
 
 pub fn getStatus(allocator: std.mem.Allocator) !GitStatus {
-    const result = std.process.Child.run(.{
-        .allocator = allocator,
-        .argv = &[_][]const u8{ "git", "status", "--porcelain=v2", "--untracked-files=all" },
-        .max_output_bytes = 10 * 1024 * 1024,
-    }) catch return error.GitCommandFailed;
-    defer allocator.free(result.stdout);
-    defer allocator.free(result.stderr);
-
-    if (result.term.Exited != 0) {
-        if (result.stderr.len > 0) {
-            std.log.err("git status failed: {s}", .{result.stderr});
-        }
-        return error.GitCommandFailed;
-    }
+    const result = try runGitCommand(allocator, "status", &.{ "git", "status", "--porcelain=v2", "--untracked-files=all" }, 10 * 1024 * 1024);
+    defer result.deinit(allocator);
 
     var status = GitStatus.init(allocator);
     errdefer status.deinit();
@@ -365,37 +393,14 @@ pub fn printGitStatus(writer: anytype, status: *GitStatus) !bool {
 }
 
 pub fn addAll(allocator: std.mem.Allocator) !void {
-    const result = std.process.Child.run(.{
-        .allocator = allocator,
-        .argv = &[_][]const u8{ "git", "add", "-A" },
-        .max_output_bytes = 1024,
-    }) catch return error.GitCommandFailed;
-    defer allocator.free(result.stdout);
-    defer allocator.free(result.stderr);
-
-    if (result.term.Exited != 0) {
-        if (result.stderr.len > 0) {
-            std.log.err("git add failed: {s}", .{result.stderr});
-        }
-        return error.GitCommandFailed;
-    }
+    const result = try runGitCommand(allocator, "add", &.{ "git", "add", "-A" }, 1024);
+    result.deinit(allocator);
 }
 
 pub fn getStagedFiles(allocator: std.mem.Allocator) !std.ArrayList([]const u8) {
-    const result = std.process.Child.run(.{
-        .allocator = allocator,
-        .argv = &[_][]const u8{ "git", "diff", "--cached", "--name-only" },
-        .max_output_bytes = 10 * 1024 * 1024,
-    }) catch return error.GitCommandFailed;
+    const result = try runGitCommand(allocator, "diff", &.{ "git", "diff", "--cached", "--name-only" }, 10 * 1024 * 1024);
+    // Note: result.stdout is transferred to the caller indirectly through `files`, so we only free stderr here
     defer allocator.free(result.stderr);
-
-    if (result.term.Exited != 0) {
-        if (result.stderr.len > 0) {
-            std.log.err("git diff failed: {s}", .{result.stderr});
-        }
-        allocator.free(result.stdout);
-        return error.GitCommandFailed;
-    }
 
     var files = std.ArrayList([]const u8).init(allocator);
     errdefer {
@@ -431,20 +436,8 @@ pub fn unstageFiles(allocator: std.mem.Allocator, files: []const []const u8) !vo
         try argv.append(file);
     }
 
-    const result = std.process.Child.run(.{
-        .allocator = allocator,
-        .argv = argv.items,
-        .max_output_bytes = 1024,
-    }) catch return error.GitCommandFailed;
-    defer allocator.free(result.stdout);
-    defer allocator.free(result.stderr);
-
-    if (result.term.Exited != 0) {
-        if (result.stderr.len > 0) {
-            std.log.err("git reset failed: {s}", .{result.stderr});
-        }
-        return error.GitCommandFailed;
-    }
+    const result = try runGitCommand(allocator, "reset", argv.items, 1024);
+    result.deinit(allocator);
 }
 
 pub fn calculateNewlyStaged(
@@ -480,57 +473,20 @@ pub fn calculateNewlyStaged(
 }
 
 pub fn getStagedDiff(allocator: std.mem.Allocator) ![]const u8 {
-    const result = std.process.Child.run(.{
-        .allocator = allocator,
-        .argv = &[_][]const u8{ "git", "diff", "--cached" },
-        .max_output_bytes = 10 * 1024 * 1024, // 10MB max
-    }) catch return error.GitCommandFailed;
-
-    if (result.term.Exited != 0) {
-        if (result.stderr.len > 0) {
-            std.log.err("git diff failed: {s}", .{result.stderr});
-        }
-        allocator.free(result.stdout);
-        allocator.free(result.stderr);
-        return error.GitCommandFailed;
-    }
-
+    const result = try runGitCommand(allocator, "diff", &.{ "git", "diff", "--cached" }, 10 * 1024 * 1024);
+    // Note: result.stdout is transferred to the caller, so we only free stderr here
     allocator.free(result.stderr);
     return result.stdout;
 }
 
 pub fn commit(allocator: std.mem.Allocator, message: []const u8) !void {
-    const result = std.process.Child.run(.{
-        .allocator = allocator,
-        .argv = &[_][]const u8{ "git", "commit", "-m", message },
-        .max_output_bytes = 10 * 1024,
-    }) catch return error.GitCommandFailed;
-    defer allocator.free(result.stdout);
-    defer allocator.free(result.stderr);
-
-    if (result.term.Exited != 0) {
-        if (result.stderr.len > 0) {
-            std.log.err("git commit failed: {s}", .{result.stderr});
-        }
-        return error.GitCommandFailed;
-    }
+    const result = try runGitCommand(allocator, "commit", &.{ "git", "commit", "-m", message }, 10 * 1024);
+    result.deinit(allocator);
 }
 
 pub fn push(allocator: std.mem.Allocator) !void {
-    const result = std.process.Child.run(.{
-        .allocator = allocator,
-        .argv = &[_][]const u8{ "git", "push" },
-        .max_output_bytes = 10 * 1024,
-    }) catch return error.GitCommandFailed;
-    defer allocator.free(result.stdout);
-    defer allocator.free(result.stderr);
-
-    if (result.term.Exited != 0) {
-        if (result.stderr.len > 0) {
-            std.log.err("git push failed: {s}", .{result.stderr});
-        }
-        return error.GitCommandFailed;
-    }
+    const result = try runGitCommand(allocator, "push", &.{ "git", "push" }, 10 * 1024);
+    result.deinit(allocator);
 }
 
 pub fn truncateDiff(allocator: std.mem.Allocator, diff: []const u8, max_size: usize) ![]const u8 {
