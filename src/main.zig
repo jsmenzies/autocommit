@@ -357,11 +357,13 @@ fn promptCommitAction(
         try stdout.print("{s}\n", .{prompt});
         try stdout.print("  [{s}c{s}]ommit\n", .{ Color.green, Color.reset });
         try stdout.print("  [{s}d{s}]ecline\n", .{ Color.yellow, Color.reset });
-        try stdout.print("  [{s}u{s}]nstage added files and decline: ", .{ Color.red, Color.reset });
+        try stdout.print("  [{s}u{s}]nstage added files and decline\n", .{ Color.red, Color.reset });
+        try stdout.print("Choice: ", .{});
     } else {
         try stdout.print("{s}\n", .{prompt});
         try stdout.print("  [{s}c{s}]ommit\n", .{ Color.green, Color.reset });
-        try stdout.print("  [{s}d{s}]ecline: ", .{ Color.yellow, Color.reset });
+        try stdout.print("  [{s}d{s}]ecline\n", .{ Color.yellow, Color.reset });
+        try stdout.print("Choice: ", .{});
     }
 
     var input_buffer: [10]u8 = undefined;
