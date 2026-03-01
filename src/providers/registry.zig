@@ -2,10 +2,12 @@ const std = @import("std");
 
 const zai = @import("zai.zig");
 const groq = @import("groq.zig");
+const custom = @import("custom.zig");
 
 pub const ProviderId = enum {
     zai,
     groq,
+    custom,
 
     pub fn name(self: ProviderId) []const u8 {
         return @tagName(self);
@@ -31,7 +33,7 @@ pub const ProviderMetadata = struct {
 };
 
 const RegistryBuilder = struct {
-    const provider_modules = .{ zai, groq };
+    const provider_modules = .{ zai, groq, custom };
 
     fn buildMetadata() [provider_modules.len]ProviderMetadata {
         comptime {
@@ -90,8 +92,10 @@ pub fn isValidProvider(name: []const u8) bool {
 test "ProviderId name and fromString" {
     try std.testing.expectEqualStrings("zai", ProviderId.zai.name());
     try std.testing.expectEqualStrings("groq", ProviderId.groq.name());
+    try std.testing.expectEqualStrings("custom", ProviderId.custom.name());
     try std.testing.expectEqual(ProviderId.zai, ProviderId.fromString("zai").?);
     try std.testing.expectEqual(ProviderId.groq, ProviderId.fromString("groq").?);
+    try std.testing.expectEqual(ProviderId.custom, ProviderId.fromString("custom").?);
     try std.testing.expect(ProviderId.fromString("unknown") == null);
 }
 
@@ -127,6 +131,7 @@ test "getIndex returns correct indices" {
 test "isValidProvider correctly identifies valid names" {
     try std.testing.expect(isValidProvider("zai"));
     try std.testing.expect(isValidProvider("groq"));
+    try std.testing.expect(isValidProvider("custom"));
     try std.testing.expect(!isValidProvider("unknown"));
     try std.testing.expect(!isValidProvider("openai"));
 }
@@ -135,6 +140,7 @@ test "getVtable returns vtable for implemented providers" {
     // Just verify we can get the vtable without error
     _ = try getVtable("zai");
     _ = try getVtable("groq");
+    _ = try getVtable("custom");
 }
 
 test "getVtable returns error for unknown providers" {

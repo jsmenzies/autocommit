@@ -231,7 +231,7 @@ pub fn printHelp(writer: anytype) !void {
         \\  --add               Auto-add all unstaged files before committing
         \\  --push              Auto-push after committing
         \\  --accept            Auto-accept generated commit message without prompting
-        \\  --provider <name>   Override provider (zai, groq)
+        \\  --provider <name>   Override provider (zai, groq, custom)
         \\  --debug             Enable debug output
         \\  --version           Show version information
         \\  --help              Show this help message

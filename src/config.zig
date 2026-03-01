@@ -246,6 +246,15 @@ pub fn validateConfig(config: *const Config, provider_name: []const u8) !void {
     const provider = config.getProvider(provider_name) catch return error.UnknownProvider;
     const metadata = registry.getByName(provider_name) orelse return error.UnknownProvider;
 
+    // Skip placeholder check for custom provider - user provides their own placeholder
+    if (std.mem.eql(u8, provider_name, "custom")) {
+        // Still check if API key is completely empty
+        if (provider.api_key.len == 0) {
+            return error.ApiKeyNotSet;
+        }
+        return;
+    }
+
     // Check if API key is a placeholder or empty
     const placeholder = try std.fmt.allocPrint(std.heap.page_allocator, "your-{s}-api-key-here", .{metadata.name});
     defer std.heap.page_allocator.free(placeholder);
