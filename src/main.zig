@@ -355,14 +355,14 @@ fn promptCommitAction(
 ) !CommitAction {
     if (has_cli_staged_files) {
         try stdout.print("{s}\n", .{prompt});
-        try stdout.print("  [{s}c{s}]ommit\n", .{ Color.green, Color.reset });
-        try stdout.print("  [{s}d{s}]ecline\n", .{ Color.yellow, Color.reset });
-        try stdout.print("  [{s}u{s}]nstage added files and decline\n", .{ Color.red, Color.reset });
+        try stdout.print("  [{s}Y{s}] - commit\n", .{ Color.green, Color.reset });
+        try stdout.print("  [{s}q{s}] - quit\n", .{ Color.yellow, Color.reset });
+        try stdout.print("  [{s}u{s}] - unstage added files\n", .{ Color.red, Color.reset });
         try stdout.print("Choice: ", .{});
     } else {
         try stdout.print("{s}\n", .{prompt});
-        try stdout.print("  [{s}c{s}]ommit\n", .{ Color.green, Color.reset });
-        try stdout.print("  [{s}d{s}]ecline\n", .{ Color.yellow, Color.reset });
+        try stdout.print("  [{s}Y{s}] - commit\n", .{ Color.green, Color.reset });
+        try stdout.print("  [{s}q{s}] - quit\n", .{ Color.yellow, Color.reset });
         try stdout.print("Choice: ", .{});
     }
 
@@ -375,7 +375,7 @@ fn promptCommitAction(
 
     if (input) |line| {
         const choice = std.mem.trim(u8, line, " \r\t");
-        if (choice.len == 0 or std.mem.eql(u8, choice, "c") or std.mem.eql(u8, choice, "C")) {
+        if (choice.len == 0 or std.mem.eql(u8, choice, "y") or std.mem.eql(u8, choice, "Y")) {
             return .commit;
         } else if (std.mem.eql(u8, choice, "u") or std.mem.eql(u8, choice, "U")) {
             return .unstage_and_decline;
