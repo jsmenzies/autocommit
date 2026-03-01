@@ -354,13 +354,14 @@ fn promptCommitAction(
     has_cli_staged_files: bool,
 ) !CommitAction {
     if (has_cli_staged_files) {
-        try stdout.print("{s} [{s}c{s}]ommit/[{s}d{s}]ecline/[{s}u{s}]nstage added files and decline: ", .{
-            prompt, Color.green, Color.reset, Color.yellow, Color.reset, Color.red, Color.reset,
-        });
+        try stdout.print("{s}\n", .{prompt});
+        try stdout.print("  [{s}c{s}]ommit\n", .{ Color.green, Color.reset });
+        try stdout.print("  [{s}d{s}]ecline\n", .{ Color.yellow, Color.reset });
+        try stdout.print("  [{s}u{s}]nstage added files and decline: ", .{ Color.red, Color.reset });
     } else {
-        try stdout.print("{s} [{s}c{s}]ommit/[{s}d{s}]ecline: ", .{
-            prompt, Color.green, Color.reset, Color.yellow, Color.reset,
-        });
+        try stdout.print("{s}\n", .{prompt});
+        try stdout.print("  [{s}c{s}]ommit\n", .{ Color.green, Color.reset });
+        try stdout.print("  [{s}d{s}]ecline: ", .{ Color.yellow, Color.reset });
     }
 
     var input_buffer: [10]u8 = undefined;
