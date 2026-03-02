@@ -227,8 +227,15 @@ pub fn main() !void {
         std.process.exit(0);
     }
 
-    var http = http_client.HttpClient.init(allocator);
+    var http = http_client.HttpClient.init(allocator) catch |err| {
+        try stderr.print("Failed to initialize HTTP client: {s}\n", .{@errorName(err)});
+        std.process.exit(1);
+    };
     defer http.deinit();
+
+    if (args.debug) {
+        http.logProxyConfig(debug_log, @ptrCast(@constCast(&stderr_file)));
+    }
 
     var provider = llm.createProvider(
         allocator,

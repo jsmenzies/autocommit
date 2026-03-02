@@ -12,16 +12,40 @@ pub const HttpError = error{
 pub const HttpClient = struct {
     client: std.http.Client,
     allocator: std.mem.Allocator,
+    proxy_arena: std.heap.ArenaAllocator,
 
-    pub fn init(allocator: std.mem.Allocator) HttpClient {
+    pub fn init(allocator: std.mem.Allocator) !HttpClient {
+        var client = std.http.Client{ .allocator = allocator };
+        var proxy_arena = std.heap.ArenaAllocator.init(allocator);
+        errdefer proxy_arena.deinit();
+
+        // Initialize default proxies from environment variables (HTTP_PROXY, HTTPS_PROXY, etc.)
+        try client.initDefaultProxies(proxy_arena.allocator());
+
         return .{
-            .client = std.http.Client{ .allocator = allocator },
+            .client = client,
             .allocator = allocator,
+            .proxy_arena = proxy_arena,
         };
     }
 
     pub fn deinit(self: *HttpClient) void {
         self.client.deinit();
+        self.proxy_arena.deinit();
+    }
+
+    /// Log proxy configuration for debugging
+    pub fn logProxyConfig(self: *HttpClient, log_fn: ?fn (?*anyopaque, []const u8) void, ctx: ?*anyopaque) void {
+        if (log_fn) |log| {
+            if (self.client.http_proxy) |proxy| {
+                const protocol = if (proxy.protocol == .tls) "https" else "http";
+                log(ctx, std.fmt.allocPrint(self.allocator, "Using HTTP proxy: {s}://{s}:{d}", .{ protocol, proxy.host, proxy.port }) catch return);
+            }
+            if (self.client.https_proxy) |proxy| {
+                const protocol = if (proxy.protocol == .tls) "https" else "http";
+                log(ctx, std.fmt.allocPrint(self.allocator, "Using HTTPS proxy: {s}://{s}:{d}", .{ protocol, proxy.host, proxy.port }) catch return);
+            }
+        }
     }
 
     /// Make a POST request with JSON body and return response body
@@ -87,6 +111,6 @@ pub const HttpClient = struct {
 };
 
 test "HttpClient initialization" {
-    var client = HttpClient.init(std.testing.allocator);
+    var client = try HttpClient.init(std.testing.allocator);
     defer client.deinit();
 }
