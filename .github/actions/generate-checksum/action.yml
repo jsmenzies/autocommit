@@ -34,7 +34,7 @@ runs:
         cat ${{ inputs.file }}.sha256
     
     - name: Upload Checksum
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: ${{ inputs.file }}-checksum
         path: ${{ inputs.file }}.sha256
